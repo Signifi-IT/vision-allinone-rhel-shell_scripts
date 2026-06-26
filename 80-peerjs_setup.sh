@@ -301,6 +301,8 @@ rendered = template.render(
     peerjs_portal_url="${PEERJS_PORTAL_URL}"
 )
 
+rendered = rendered.rstrip("\n") + "\n"
+
 with open("${PEERJS_HAPROXY_CFG}", "w") as f:
     f.write(rendered)
 EOF

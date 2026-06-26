@@ -230,6 +230,8 @@ rendered = template.render(
     HAPROXY_ALLOWED_STATS_IPS=allowed_ips
 )
 
+rendered = rendered.rstrip("\n") + "\n"
+
 with open("${HAPROXY_CONF_DIR}/00-global_frontend.cfg", "w") as f:
     f.write(rendered)
 EOF
@@ -253,6 +255,8 @@ rendered = template.render(
     PORTAL_URL="${PORTAL_URL}"
 )
 
+rendered = rendered.rstrip("\n") + "\n"
+
 with open("${HAPROXY_CONF_DIR}/01-global_stats.cfg", "w") as f:
     f.write(rendered)
 EOF
@@ -273,6 +277,8 @@ with open("${PORTAL_BACKEND_TEMPLATE}") as f:
     tpl = Template(f.read())
 
 rendered = tpl.render(portal_url="${PORTAL_URL}")
+
+rendered = rendered.rstrip("\n") + "\n"
 
 with open("${HAPROXY_CONF_DIR}/${PORTAL_URL}_backend.cfg", "w") as f:
     f.write(rendered)
