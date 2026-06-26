@@ -1,0 +1,333 @@
+#!/bin/bash
+
+###############################################################################
+# Description:
+#   Configures Apache HTTPD for the Vision application:
+#     - Loads configuration from answers.txt
+#     - Sets application ownership and permissions
+#     - Removes default Apache configuration files
+#     - Creates mod_status configuration
+#     - Configures Apache listener on 127.0.0.1:7080
+#     - Applies Apache security directives
+#     - Configures global ServerName
+#     - Renders Apache virtual host configuration from Jinja2 template
+#     - Creates Apache log directories
+#     - Comments default DocumentRoot
+#     - Configures SELinux HTTP port mapping
+#     - Validates Apache configuration
+#     - Enables and restarts Apache service
+###############################################################################
+
+set -Eeuo pipefail
+set -o errtrace
+
+###############################################################################
+# Logging
+###############################################################################
+
+LOG_FILE="/var/log/vision_deployment.log"
+
+exec > >(tee -a "$LOG_FILE") 2>&1
+
+log() {
+    echo "[INFO ] $(date '+%Y-%m-%d %H:%M:%S') - $*"
+}
+
+warn() {
+    echo "[WARN ] $(date '+%Y-%m-%d %H:%M:%S') - $*" >&2
+}
+
+error() {
+    echo "[ERROR] $(date '+%Y-%m-%d %H:%M:%S') - $*" >&2
+}
+
+trap 'error "Script failed at line ${LINENO}: ${BASH_COMMAND}"' ERR
+
+###############################################################################
+# Root check
+###############################################################################
+
+if [[ "${EUID}" -ne 0 ]]; then
+    error "This script must be run as root."
+    exit 1
+fi
+
+###############################################################################
+# Run helper
+###############################################################################
+
+run() {
+    local message="$1"
+    shift
+
+    log "$message"
+
+    local output rc
+
+    if output=$("$@" 2>&1); then
+        return 0
+    else
+        rc=$?
+        echo "$output" >&2
+        return "$rc"
+    fi
+}
+
+###############################################################################
+# Load configuration
+###############################################################################
+
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+CONFIG_FILE="${SCRIPT_DIR}/answers.txt"
+
+if [[ ! -f "${CONFIG_FILE}" ]]; then
+    error "Configuration file not found: ${CONFIG_FILE}"
+    exit 1
+fi
+
+log "Loading configuration from ${CONFIG_FILE}..."
+
+if ! source "${CONFIG_FILE}"; then
+    error "Failed to load configuration file"
+    exit 1
+fi
+
+###############################################################################
+# Constants
+###############################################################################
+
+APP_DIR="/var/www/${PORTAL_URL}"
+
+TEMPLATE_FILE="${SCRIPT_DIR}/templates/site_template.j2"
+SITE_CONFIG="/etc/httpd/conf.d/${PORTAL_URL}.conf"
+
+STATUS_CONF="/etc/httpd/conf.d/status.conf"
+SECURITY_CONF="/etc/httpd/conf.d/security.conf"
+
+HTTPD_CONF="/etc/httpd/conf/httpd.conf"
+
+###############################################################################
+# Validate required variables
+###############################################################################
+
+REQUIRED_VARS=(
+    PORTAL_URL
+)
+
+for var in "${REQUIRED_VARS[@]}"; do
+    if [[ -z "${!var:-}" ]]; then
+        error "Required variable '${var}' is not defined"
+        exit 1
+    fi
+done
+
+###############################################################################
+# Validate template
+###############################################################################
+
+if [[ ! -f "${TEMPLATE_FILE}" ]]; then
+    error "Template not found: ${TEMPLATE_FILE}"
+    exit 1
+fi
+
+###############################################################################
+# Backup helper
+###############################################################################
+
+backup_file_if_needed() {
+
+    local file="$1"
+    local backup="${file}.bak"
+
+    if [[ -f "${file}" ]] && [[ ! -f "${backup}" ]]; then
+        log "Creating backup: ${backup}"
+        cp -p "${file}" "${backup}"
+    fi
+}
+
+###############################################################################
+# Application permissions
+###############################################################################
+
+run "Setting application permissions" \
+    chmod -R 0755 "${APP_DIR}"
+
+run "Setting application ownership" \
+    chown -R root:root "${APP_DIR}"
+
+###############################################################################
+# Remove default Apache configuration
+###############################################################################
+
+DEFAULT_CONFS=(
+    welcome.conf
+    autoindex.conf
+    userdir.conf
+    status.conf
+    security.conf
+)
+
+for file in "${DEFAULT_CONFS[@]}"; do
+
+    if [[ -f "/etc/httpd/conf.d/${file}" ]]; then
+
+        run "Removing ${file}" \
+            rm -f "/etc/httpd/conf.d/${file}"
+
+    fi
+
+done
+
+###############################################################################
+# mod_status configuration
+###############################################################################
+
+log "Creating mod_status configuration"
+
+cat > "${STATUS_CONF}" <<'EOF'
+ExtendedStatus On
+
+<IfModule mod_proxy.c>
+    ProxyStatus On
+</IfModule>
+EOF
+
+chmod 0644 "${STATUS_CONF}"
+chown root:root "${STATUS_CONF}"
+
+###############################################################################
+# Apache security configuration
+###############################################################################
+
+log "Creating Apache security configuration"
+
+cat > "${SECURITY_CONF}" <<'EOF'
+ServerTokens Prod
+ServerSignature Off
+TraceEnable Off
+EOF
+
+chmod 0644 "${SECURITY_CONF}"
+chown root:root "${SECURITY_CONF}"
+
+###############################################################################
+# Apache listener configuration
+###############################################################################
+
+backup_file_if_needed "${HTTPD_CONF}"
+
+sed -ri \
+    's|^[[:space:]]*Listen[[:space:]].*|Listen 127.0.0.1:7080|' \
+    "${HTTPD_CONF}"
+
+###############################################################################
+# ServerName
+###############################################################################
+
+log "Ensuring Apache ServerName is configured"
+
+if ! grep -q '^ServerName localhost$' "${HTTPD_CONF}"; then
+    echo "ServerName localhost" >> "${HTTPD_CONF}"
+fi
+
+###############################################################################
+# Comment default DocumentRoot
+###############################################################################
+
+sed -ri \
+    's|^(DocumentRoot[[:space:]]+"/var/www/html")|# \1|' \
+    "${HTTPD_CONF}"
+
+###############################################################################
+# Install Jinja2
+###############################################################################
+
+run "Installing python3-jinja2" \
+    dnf install -y python3-jinja2
+
+###############################################################################
+# Render virtual host configuration
+###############################################################################
+
+log "Rendering Apache virtual host configuration"
+
+export PORTAL_URL
+
+ALLOWED_IPS="$(printf '%s\n' "${ALLOWED_SERVER_STATUS_IPS[@]}")"
+export ALLOWED_IPS
+
+python3 <<EOF
+from jinja2 import Template
+
+with open("${TEMPLATE_FILE}") as f:
+    template = Template(f.read())
+
+rendered = template.render(
+    portal_url="${PORTAL_URL}",
+    allowed_server_status_ips="""${ALLOWED_IPS}""".splitlines()
+)
+
+with open("${SITE_CONFIG}", "w") as f:
+    f.write(rendered)
+EOF
+
+chmod 0644 "${SITE_CONFIG}"
+chown root:root "${SITE_CONFIG}"
+
+###############################################################################
+# Remove Jinja2
+###############################################################################
+
+run "Removing python3-jinja2" \
+    dnf remove -y python3-jinja2
+
+###############################################################################
+# Apache log directory
+###############################################################################
+
+run "Creating Apache log directory" \
+    mkdir -p "/var/log/httpd/${PORTAL_URL}"
+
+run "Setting Apache log directory ownership" \
+    chown root:root "/var/log/httpd/${PORTAL_URL}"
+
+run "Setting Apache log directory permissions" \
+    chmod 0755 "/var/log/httpd/${PORTAL_URL}"
+
+###############################################################################
+# SELinux port
+###############################################################################
+
+if ! semanage port -l | grep -qE '^http_port_t.*\b7080\b'; then
+
+    run "Adding SELinux HTTP port 7080" \
+        semanage port -a -t http_port_t -p tcp 7080
+
+else
+
+    log "SELinux HTTP port 7080 already configured"
+
+fi
+
+###############################################################################
+# Validate Apache
+###############################################################################
+
+run "Validating Apache configuration" \
+    apachectl configtest
+
+###############################################################################
+# Enable and restart Apache
+###############################################################################
+
+run "Enabling HTTPD service" \
+    systemctl enable httpd
+
+run "Restarting HTTPD service" \
+    systemctl restart httpd
+
+###############################################################################
+# Completion
+###############################################################################
+
+log "Apache configuration completed successfully."
