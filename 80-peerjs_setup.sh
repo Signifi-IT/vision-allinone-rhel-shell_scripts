@@ -98,14 +98,14 @@ fi
 # Constants
 ###############################################################################
 
-BITBUCKET_KEY="${SCRIPT_DIR}/files/bitbucket"
+BITBUCKET_KEY="${SCRIPT_DIR}/files/project_files/bitbucket"
 
 PEERJS_REPO="git@bitbucket.org:teamsignifi/peerjs-server.git"
 PEERJS_BRANCH="master"
 
 PEERJS_DIR="/var/www/${PEERJS_PORTAL_URL}"
 
-PEM_FILE="${SCRIPT_DIR}/files/haproxy.pem"
+PEM_FILE="${SCRIPT_DIR}/files/project_files/haproxy.pem"
 
 PEERJS_TEMPLATE="${SCRIPT_DIR}/templates/peerjs_backend.j2"
 PEERJS_HAPROXY_CFG="/etc/haproxy/conf.d/${PEERJS_PORTAL_URL}_backend.cfg"

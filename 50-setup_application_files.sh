@@ -93,7 +93,7 @@ fi
 # Constants
 ###############################################################################
 
-BITBUCKET_KEY="${SCRIPT_DIR}/files/bitbucket"
+BITBUCKET_KEY="${SCRIPT_DIR}/files/project_files/bitbucket"
 
 PHP_INI_SOURCE="${SCRIPT_DIR}/files/php_files/php.ini"
 PHP_WWW_CONF_SOURCE="${SCRIPT_DIR}/files/php_files/www.conf"
