@@ -1,0 +1,11 @@
+backend {{ peerjs_portal_url | replace('-', '_') | replace('.', '_') }}_backend
+    mode http
+    server {{ peerjs_portal_url | replace('-', '_') | replace('.', '_') }}_peerjs 127.0.0.1:9000 check inter 10s rise 2 fall 3
+
+    # WebSocket / PeerJS requirements
+    option http-server-close
+
+    # Timeouts {{ peerjs_portal_url | replace('-', '_') | replace('.', '_') }}_backend
+    timeout connect 10s
+    timeout server  1m
+    timeout tunnel 1h

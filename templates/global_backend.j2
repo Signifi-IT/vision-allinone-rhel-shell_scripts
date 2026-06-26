@@ -1,0 +1,10 @@
+backend haproxy_stats_backend
+    mode http
+    stats enable
+    stats uri /
+    stats refresh 5s
+    stats realm HAProxy\ Statistics
+    stats show-desc "{{ PORTAL_URL }}"
+    stats show-node
+    stats show-legends
+    stats hide-version

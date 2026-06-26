@@ -1,0 +1,54 @@
+<VirtualHost 127.0.0.1:7080>
+    # RemoteIP Configuration for HAProxy
+    RemoteIPHeader X-Forwarded-For
+    RemoteIPInternalProxy 127.0.0.1
+
+    # Portal Configuration
+    ServerAdmin admin@{{ portal_url }}
+    ServerName {{ portal_url }}
+
+    # Document Root Configuration
+    DocumentRoot /var/www/{{ portal_url }}/
+
+    # Disable ETags
+    FileETag None
+    Header always unset ETag
+
+    # Per-vhost log format
+    LogFormat "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" combined
+
+    # Log File Configuration
+    CustomLog /var/log/httpd/{{ portal_url }}/access.log combined
+    ErrorLog /var/log/httpd/{{ portal_url }}/error.log
+
+    # Security headers
+    Header always unset X-Powered-By
+    Header always unset Server
+
+    <Directory /var/www/{{ portal_url }}/>
+        Options -Indexes
+        AllowOverride All
+        Require all granted
+    </Directory>
+
+    # PHP-FPM Handling
+    <FilesMatch "\.php$">
+        SetHandler "proxy:unix:/run/php-fpm/www.sock|fcgi://localhost/"
+    </FilesMatch>
+
+    <Location /server-status>
+        SetHandler server-status
+        RewriteEngine Off
+    {% for ip in allowed_server_status_ips %}
+        Require ip {{ ip }}
+    {% endfor %}
+    </Location>
+
+    <Location /status>
+        SetHandler "proxy:unix:/run/php-fpm/www.sock|fcgi://localhost/"
+        RewriteEngine Off
+    {% for ip in allowed_server_status_ips %}
+        Require ip {{ ip }}
+    {% endfor %}
+    </Location>
+</VirtualHost>
