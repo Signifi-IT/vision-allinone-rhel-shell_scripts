@@ -93,8 +93,6 @@ fi
 # Constants
 ###############################################################################
 
-BITBUCKET_KEY="${SCRIPT_DIR}/files/project_files/bitbucket"
-
 PHP_INI_SOURCE="${SCRIPT_DIR}/files/php_files/php.ini"
 PHP_WWW_CONF_SOURCE="${SCRIPT_DIR}/files/php_files/www.conf"
 
@@ -108,6 +106,7 @@ APP_DIR="/var/www/${PORTAL_URL}"
 ###############################################################################
 
 REQUIRED_VARS=(
+    BITBUCKET_KEY
     PORTAL_URL
     APP_URL
     APP_BRANCH

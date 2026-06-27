@@ -1,8 +1,8 @@
 # System timezone to be configured on the server
-LOCAL_TIMEZONE=''
+LOCAL_TIMEZONE=""
 
 # Password of the PostgreSQL Database Administrator User (postgres)
-POSTGRES_ADMIN_PASSWORD=''
+POSTGRES_ADMIN_PASSWORD=""
 
 # List of users allowed in pg_hba.conf for database authentication
 DB_USER_AUTHENTICATION_HBA=(
@@ -17,43 +17,46 @@ DB_NETWORK_AUTHENTICATION_HBA=(
 )
 
 # Application database owner username in PostgreSQL
-APP_DB_USER=''
+APP_DB_USER=""
 
 # Password for the application database user
-APP_DB_PASSWORD=''
+APP_DB_PASSWORD=""
 
 # Name of the application database in PostgreSQL
-APP_DB_NAME=''
+APP_DB_NAME=""
 
 # Absolute path to the PostgreSQL database backup file to be restored
-BACKUP_FILE_PATH=''
+BACKUP_FILE_PATH=""
+
+# Absolute path to the SSH private key used for accessing Bitbucket repositories
+BITBUCKET_KEY="${SCRIPT_DIR}/files/project_files/<filename>"
 
 # Public URL/domain of the Vision application portal
-PORTAL_URL=''
+PORTAL_URL=""
 
 # Git repository URL for the main Vision application
-APP_URL='git@bitbucket.org:teamsignifi/vision.git'
+APP_URL="git@bitbucket.org:teamsignifi/vision.git"
 
 # Git branch to deploy for the main Vision application
-APP_BRANCH='qa-15.0.0'
+APP_BRANCH="qa-15.0.0"
 
 # Git repository URL for Vision application media assets
-APP_MEDIA_URL='git@bitbucket.org:teamsignifi/linkedin-media.git'
+APP_MEDIA_URL="git@bitbucket.org:teamsignifi/linkedin-media.git"
 
 # Git branch to deploy for Vision application media assets
-APP_MEDIA_BRANCH='master'
+APP_MEDIA_BRANCH="master"
 
 # Git repository URL for the Vision application API
-APP_API_URL='git@bitbucket.org:teamsignifi/linkedin-media.git'
+APP_API_URL="git@bitbucket.org:teamsignifi/linkedin-media.git"
 
 # Git branch to deploy for the Vision application API
-APP_API_BRANCH='master'
+APP_API_BRANCH="master"
 
 # Git repository URL for the Vision mobile application
-APP_MOBILE_URL='git@bitbucket.org:teamsignifi/mobile-ui-dist.git'
+APP_MOBILE_URL="git@bitbucket.org:teamsignifi/mobile-ui-dist.git"
 
 # Git branch to deploy for the Vision mobile application
-APP_MOBILE_BRANCH='release-25.0.0'
+APP_MOBILE_BRANCH="release-25.0.0"
 
 # CIDR IP ranges allowed to access /status and /server-status endpoints via HAProxy
 ALLOWED_SERVER_STATUS_IPS=(
@@ -61,7 +64,7 @@ ALLOWED_SERVER_STATUS_IPS=(
 )
 
 # Absolute path to the SSL/TLS certificate file used by the application
-CERT_PATH=''
+CERT_PATH="${SCRIPT_DIR}/files/project_files/<haproxy_cert>.pem"
 
 # CIDR IP ranges allowed to access HAProxy stats /haproxy-stats endpoint
 HAPROXY_ALLOWED_STATS_IPS=(
@@ -69,4 +72,4 @@ HAPROXY_ALLOWED_STATS_IPS=(
 )
 
 # Public URL/domain of the PeerJS service
-PEERJS_PORTAL_URL=''
+PEERJS_PORTAL_URL=""

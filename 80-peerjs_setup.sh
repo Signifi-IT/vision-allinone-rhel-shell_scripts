@@ -98,14 +98,14 @@ fi
 # Constants
 ###############################################################################
 
-BITBUCKET_KEY="${SCRIPT_DIR}/files/project_files/bitbucket"
-
 PEERJS_REPO="git@bitbucket.org:teamsignifi/peerjs-server.git"
 PEERJS_BRANCH="master"
 
 PEERJS_DIR="/var/www/${PEERJS_PORTAL_URL}"
 
-PEM_FILE="${SCRIPT_DIR}/files/project_files/haproxy.pem"
+HAPROXY_CERT_DIR="/etc/haproxy/certs"
+CERT_SOURCE="${CERT_PATH}"
+CERT_DEST="${HAPROXY_CERT_DIR}/${PEERJS_PORTAL_URL}.pem"
 
 PEERJS_TEMPLATE="${SCRIPT_DIR}/templates/peerjs_backend.j2"
 PEERJS_HAPROXY_CFG="/etc/haproxy/conf.d/${PEERJS_PORTAL_URL}_backend.cfg"
@@ -117,6 +117,7 @@ HOSTS_MAP="/etc/haproxy/maps/hosts.map"
 ###############################################################################
 
 REQUIRED_VARS=(
+    BITBUCKET_KEY
     PEERJS_PORTAL_URL
 )
 
@@ -270,13 +271,12 @@ run "Persisting PM2 process list" \
 # Install certificate
 ###############################################################################
 
-run "Installing PeerJS TLS certificate" \
-    cp -f \
-        "${PEM_FILE}" \
-        "/etc/haproxy/certs/${PEERJS_PORTAL_URL}.pem"
+run "Installing PeerJS TLS certificate" cp -f \
+    "${CERT_SOURCE}" \
+    "${CERT_DEST}"
 
-chmod 0600 "/etc/haproxy/certs/${PEERJS_PORTAL_URL}.pem"
-chown root:root "/etc/haproxy/certs/${PEERJS_PORTAL_URL}.pem"
+chmod 0600 "${CERT_DEST}"
+chown root:root "${CERT_DEST}"
 
 ###############################################################################
 # Install Jinja2
@@ -300,8 +300,6 @@ with open("${PEERJS_TEMPLATE}") as f:
 rendered = template.render(
     peerjs_portal_url="${PEERJS_PORTAL_URL}"
 )
-
-rendered = rendered.rstrip("\n") + "\n"
 
 with open("${PEERJS_HAPROXY_CFG}", "w") as f:
     f.write(rendered)
