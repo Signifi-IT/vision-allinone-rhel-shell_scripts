@@ -73,7 +73,8 @@ run() {
 # Load configuration
 ###############################################################################
 
-CONFIG_FILE="$(dirname "$(readlink -f "$0")")/answers.txt"
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+CONFIG_FILE="${SCRIPT_DIR}/answers.txt"
 
 if [[ ! -f "$CONFIG_FILE" ]]; then
     error "Configuration file not found: $CONFIG_FILE"

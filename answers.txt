@@ -26,7 +26,7 @@ APP_DB_PASSWORD=""
 APP_DB_NAME=""
 
 # Absolute path to the PostgreSQL database backup file to be restored
-BACKUP_FILE_PATH=""
+BACKUP_FILE_PATH="${SCRIPT_DIR}/files/project_files/<filename>"
 
 # Absolute path to the SSH private key used for accessing Bitbucket repositories
 BITBUCKET_KEY="${SCRIPT_DIR}/files/project_files/<filename>"

@@ -102,7 +102,7 @@ PG_RESTORE="/usr/pgsql-14/bin/pg_restore"
 
 PG_HBA="/var/lib/pgsql/14/data/pg_hba.conf"
 
-BACKUP_FILE="${SCRIPT_DIR}/${BACKUP_FILE_PATH}"
+BACKUP_FILE="${BACKUP_FILE_PATH}"
 
 ###############################################################################
 # Validate required variables
