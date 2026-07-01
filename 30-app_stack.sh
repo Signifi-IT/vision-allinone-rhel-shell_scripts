@@ -96,7 +96,7 @@ run "Installing EPEL repository" dnf install -y "${EPEL_RPM}"
 ###############################################################################
 
 run "Enabling CodeReady Builder repository" \
-    dnf config-manager --set-enabled codeready-builder-for-rhel-9-x86_64-rpms
+    subscription-manager repos --enable codeready-builder-for-rhel-9-x86_64-rpms
 
 ###############################################################################
 # DNF refresh
@@ -122,6 +122,12 @@ run "Upgrading all packages" dnf upgrade -y --refresh
 ###############################################################################
 
 run "Installing PHP 8.2 common profile" dnf install -y "@php:8.2/common"
+
+###############################################################################
+# DNF refresh
+###############################################################################
+
+run "Refreshing DNF package metadata" dnf makecache -y
 
 ###############################################################################
 # Required packages

@@ -103,6 +103,13 @@ PEERJS_BRANCH="master"
 
 PEERJS_DIR="/var/www/${PEERJS_PORTAL_URL}"
 
+HAPROXY_CFG="/etc/haproxy/haproxy.cfg"
+
+HAPROXY_CONF_DIR="/etc/haproxy/conf.d"
+HAPROXY_MAP_DIR="/etc/haproxy/maps"
+
+HAPROXY_MAP_FILE="${HAPROXY_MAP_DIR}/hosts.map"
+
 HAPROXY_CERT_DIR="/etc/haproxy/certs"
 CERT_SOURCE="${CERT_PATH}"
 CERT_DEST="${HAPROXY_CERT_DIR}/${PEERJS_PORTAL_URL}.pem"
@@ -110,7 +117,7 @@ CERT_DEST="${HAPROXY_CERT_DIR}/${PEERJS_PORTAL_URL}.pem"
 PEERJS_TEMPLATE="${SCRIPT_DIR}/templates/peerjs_backend.j2"
 PEERJS_HAPROXY_CFG="/etc/haproxy/conf.d/${PEERJS_PORTAL_URL}_backend.cfg"
 
-HOSTS_MAP="/etc/haproxy/maps/hosts.map"
+# HOSTS_MAP="/etc/haproxy/maps/hosts.map"
 
 ###############################################################################
 # Validate required variables
@@ -158,7 +165,7 @@ done
 ###############################################################################
 
 run "Refreshing DNF package cache" \
-    dnf makecache
+    dnf makecache -y
 
 run "Resetting Node.js module" \
     dnf module reset nodejs -y
@@ -174,14 +181,14 @@ run "Installing Node.js" \
 ###############################################################################
 
 run "Installing PM2 globally" \
-    npm install -g pm2
+    /usr/bin/npm install -g pm2
 
 ###############################################################################
 # Configure PM2 startup
 ###############################################################################
 
 run "Configuring PM2 startup" \
-    pm2 startup systemd -u root --hp /root
+    /usr/local/bin/pm2 startup systemd -u root --hp /root
 
 ###############################################################################
 # Configure Git SSH
@@ -236,36 +243,37 @@ clone_or_update_repo \
 ###############################################################################
 
 run "Installing PeerJS dependencies" \
-    bash -c "cd '${PEERJS_DIR}' && npm ci"
+    bash -c "cd '${PEERJS_DIR}' && /usr/bin/npm ci"
 
 ###############################################################################
 # Application permissions
 ###############################################################################
 
-run "Setting PeerJS ownership" \
-    chown -R root:root "${PEERJS_DIR}"
+run "Setting PeerJS application permissions" \
+    find "${PEERJS_DIR}" -type d -exec chmod 0755 {} + && \
+    find "${PEERJS_DIR}" -type f -exec chmod 0644 {} +
 
-run "Setting PeerJS permissions" \
-    chmod -R 0755 "${PEERJS_DIR}"
+run "Setting PeerJS application ownership" \
+    chown -R root:root "${PEERJS_DIR}"
 
 ###############################################################################
 # PM2 deployment
 ###############################################################################
 
-if pm2 list | grep -q 'peerjs'; then
+if /usr/local/bin/pm2 list | grep -q 'peerjs'; then
 
     run "Restarting PeerJS PM2 application" \
-        pm2 restart peerjs
+        bash -c "/usr/local/bin/pm2 restart peerjs"
 
 else
 
     run "Starting PeerJS PM2 application" \
-        bash -c "cd '${PEERJS_DIR}' && pm2 start app.js --name peerjs"
+        bash -c "cd '${PEERJS_DIR}' && /usr/local/bin/pm2 start app.js --name peerjs"
 
 fi
 
 run "Persisting PM2 process list" \
-    bash -c "cd '${PEERJS_DIR}' && pm2 save"
+    bash -c "cd '${PEERJS_DIR}' && /usr/local/bin/pm2 save"
 
 ###############################################################################
 # Install certificate
@@ -318,81 +326,85 @@ run "Removing python3-jinja2" \
     dnf remove -y python3-jinja2
 
 ###############################################################################
-# Update HAProxy hosts.map
+# Update hosts.map entry
 ###############################################################################
 
-PEERJS_BACKEND_NAME="$(
-    echo "${PEERJS_PORTAL_URL}" \
-        | sed 's/[.-]/_/g'
-)_backend"
+# PEERJS_BACKEND_NAME="$(
+#     echo "${PEERJS_PORTAL_URL}" \
+#         | sed 's/[.-]/_/g'
+# )_backend"
 
-MAP_ENTRY="${PEERJS_PORTAL_URL} ${PEERJS_BACKEND_NAME}"
+# MAP_ENTRY="${PEERJS_PORTAL_URL} ${PEERJS_BACKEND_NAME}"
 
-if ! grep -Fxq "${MAP_ENTRY}" "${HOSTS_MAP}"; then
+# if ! grep -Fxq "${MAP_ENTRY}" "${HOSTS_MAP}"; then
 
-    log "Adding PeerJS host mapping"
+#     log "Adding PeerJS host mapping"
 
-    echo "${MAP_ENTRY}" >> "${HOSTS_MAP}"
+#     echo "${MAP_ENTRY}" >> "${HOSTS_MAP}"
 
-else
+# else
 
-    log "PeerJS host mapping already exists"
+#     log "PeerJS host mapping already exists"
 
-fi
+# fi
+
+BACKEND_NAME="${PEERJS_PORTAL_URL//[-.]/_}_backend"
+
+log "Adding ${PEERJS_PORTAL_URL} to HAProxy backend map as ${BACKEND_NAME}"
+
+grep -q "${PEERJS_PORTAL_URL}" "${HAPROXY_MAP_FILE}" || \
+    echo "${PEERJS_PORTAL_URL} ${BACKEND_NAME}" >> "${HAPROXY_MAP_FILE}"
 
 ###############################################################################
 # Validate HAProxy
 ###############################################################################
 
 run "Validating HAProxy configuration" \
-    haproxy -c \
-        -f /etc/haproxy/haproxy.cfg \
-        -f /etc/haproxy/conf.d
+    haproxy -c -f "${HAPROXY_CFG}" -f "${HAPROXY_CONF_DIR}"
 
 ###############################################################################
 # Restart HAProxy
 ###############################################################################
 
-run "Stopping HAProxy service" \
-    systemctl stop haproxy
-
-run "Disabling HAProxy service" \
-    systemctl disable haproxy
-
-run "Starting HAProxy service" \
-    systemctl start haproxy
-
-run "Enabling HAProxy service" \
-    systemctl enable haproxy
+run "Stopping HAProxy" systemctl stop haproxy
+run "Starting HAProxy" systemctl start haproxy
+run "Enabling HAProxy" systemctl enable haproxy
 
 ###############################################################################
 # Update /etc/hosts
 ###############################################################################
 
-HOST_IP="$(
-    ip route get 1.1.1.1 \
-        | awk '{
-            for(i=1;i<=NF;i++)
-                if($i=="src") {
-                    print $(i+1)
-                    exit
-                }
-        }'
-)"
+# HOST_IP="$(
+#     ip route get 1.1.1.1 \
+#         | awk '{
+#             for(i=1;i<=NF;i++)
+#                 if($i=="src") {
+#                     print $(i+1)
+#                     exit
+#                 }
+#         }'
+# )"
 
-HOST_ENTRY="${HOST_IP} ${PEERJS_PORTAL_URL}"
+# HOST_ENTRY="${HOST_IP} ${PEERJS_PORTAL_URL}"
 
-if ! grep -Eq "^[[:space:]]*${HOST_IP}[[:space:]]+${PEERJS_PORTAL_URL}$" /etc/hosts; then
+# if ! grep -Eq "^[[:space:]]*${HOST_IP}[[:space:]]+${PEERJS_PORTAL_URL}$" /etc/hosts; then
 
-    log "Adding PeerJS host entry to /etc/hosts"
+#     log "Adding PeerJS host entry to /etc/hosts"
 
-    echo "${HOST_ENTRY}" >> /etc/hosts
+#     echo "${HOST_ENTRY}" >> /etc/hosts
 
-else
+# else
 
-    log "PeerJS host entry already exists"
+#     log "PeerJS host entry already exists"
 
-fi
+# fi
+
+SYSTEM_IP="$(hostname -I | awk '{print $1}')"
+
+log "Adding PeerJS Portal host entry to /etc/hosts"
+
+grep -qE "^[[:space:]]*${SYSTEM_IP}[[:space:]]+${PEERJS_PORTAL_URL}$" /etc/hosts || \
+    echo "${SYSTEM_IP} ${PEERJS_PORTAL_URL}" >> /etc/hosts
 
 ###############################################################################
 # Completion

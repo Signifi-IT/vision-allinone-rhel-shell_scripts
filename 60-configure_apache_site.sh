@@ -149,8 +149,12 @@ backup_file_if_needed() {
 # Application permissions
 ###############################################################################
 
+# run "Setting application permissions" \
+#     chmod -R 0755 "${APP_DIR}"
+
 run "Setting application permissions" \
-    chmod -R 0755 "${APP_DIR}"
+    find "${APP_DIR}" -type d -exec chmod 0755 {} + && \
+    find "${APP_DIR}" -type f -exec chmod 0644 {} +
 
 run "Setting application ownership" \
     chown -R root:root "${APP_DIR}"
@@ -188,12 +192,23 @@ cat > "${STATUS_CONF}" <<'EOF'
 ExtendedStatus On
 
 <IfModule mod_proxy.c>
+    # Show Proxy LoadBalancer status in mod_status
     ProxyStatus On
 </IfModule>
 EOF
 
 chmod 0644 "${STATUS_CONF}"
 chown root:root "${STATUS_CONF}"
+
+###############################################################################
+# Apache listener configuration
+###############################################################################
+
+backup_file_if_needed "${HTTPD_CONF}"
+
+sed -ri \
+    's|^[[:space:]]*Listen[[:space:]].*|Listen 127.0.0.1:7080|' \
+    "${HTTPD_CONF}"
 
 ###############################################################################
 # Apache security configuration
@@ -211,16 +226,6 @@ chmod 0644 "${SECURITY_CONF}"
 chown root:root "${SECURITY_CONF}"
 
 ###############################################################################
-# Apache listener configuration
-###############################################################################
-
-backup_file_if_needed "${HTTPD_CONF}"
-
-sed -ri \
-    's|^[[:space:]]*Listen[[:space:]].*|Listen 127.0.0.1:7080|' \
-    "${HTTPD_CONF}"
-
-###############################################################################
 # ServerName
 ###############################################################################
 
@@ -229,14 +234,6 @@ log "Ensuring Apache ServerName is configured"
 if ! grep -q '^ServerName localhost$' "${HTTPD_CONF}"; then
     echo "ServerName localhost" >> "${HTTPD_CONF}"
 fi
-
-###############################################################################
-# Comment default DocumentRoot
-###############################################################################
-
-sed -ri \
-    's|^(DocumentRoot[[:space:]]+"/var/www/html")|# \1|' \
-    "${HTTPD_CONF}"
 
 ###############################################################################
 # Install Jinja2
@@ -293,6 +290,14 @@ run "Setting Apache log directory ownership" \
 
 run "Setting Apache log directory permissions" \
     chmod 0755 "/var/log/httpd/${PORTAL_URL}"
+
+###############################################################################
+# Comment default DocumentRoot
+###############################################################################
+
+sed -ri \
+    's|^(DocumentRoot[[:space:]]+"/var/www/html")|# \1|' \
+    "${HTTPD_CONF}"
 
 ###############################################################################
 # SELinux port

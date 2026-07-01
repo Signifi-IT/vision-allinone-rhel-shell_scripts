@@ -278,7 +278,7 @@ END
 "
 
 ###############################################################################
-# Create database
+# Create application database
 ###############################################################################
 
 DB_EXISTS=$(
@@ -337,20 +337,36 @@ run "Restoring database backup" \
 # Migration verification
 ###############################################################################
 
-log "Checking migration version..."
+# log "Checking migration version..."
 
-VERSION=$(
+# VERSION=$(
+#     PGPASSWORD="${APP_DB_PASSWORD}" \
+#     "${PSQL}" \
+#         -h 127.0.0.1 \
+#         -p "${POSTGRES_PORT}" \
+#         -U "${APP_DB_USER}" \
+#         -d "${APP_DB_NAME}" \
+#         -At \
+#         # -c "SELECT version FROM migrations LIMIT 1;"
+#         -c "SELECT * FROM migrations;"
+# )
+
+# log "Migration version: ${VERSION}"
+
+log "Querying migrations table for verification..."
+
+RESULT=$(
     PGPASSWORD="${APP_DB_PASSWORD}" \
     "${PSQL}" \
         -h 127.0.0.1 \
-        -p "${POSTGRES_PORT}" \
+        -p 5431 \
         -U "${APP_DB_USER}" \
         -d "${APP_DB_NAME}" \
         -At \
-        -c "SELECT version FROM migrations LIMIT 1;"
+        -c "SELECT * FROM migrations;"
 )
 
-log "Migration version: ${VERSION}"
+log "Migrations table output: ${RESULT}"
 
 ###############################################################################
 # Completion

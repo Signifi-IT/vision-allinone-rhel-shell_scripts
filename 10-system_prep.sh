@@ -120,6 +120,7 @@ REQUIRED_PACKAGES=(
     policycoreutils-python-utils
     policycoreutils-restorecond
     python3-libselinux
+    python3-dnf
     traceroute
     wget
     yum-utils

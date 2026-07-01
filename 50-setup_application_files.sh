@@ -171,7 +171,7 @@ backup_file_if_needed() {
 # Application directory
 ###############################################################################
 
-log "Creating application directory"
+log "Creating application portal directory"
 
 mkdir -p "${APP_DIR}"
 chmod 0755 "${APP_DIR}"

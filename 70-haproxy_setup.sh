@@ -106,12 +106,12 @@ done
 
 HAPROXY_CFG="/etc/haproxy/haproxy.cfg"
 
-HAPROXY_CERT_DIR="/etc/haproxy/certs"
 HAPROXY_CONF_DIR="/etc/haproxy/conf.d"
 HAPROXY_MAP_DIR="/etc/haproxy/maps"
 
 HAPROXY_MAP_FILE="${HAPROXY_MAP_DIR}/hosts.map"
 
+HAPROXY_CERT_DIR="/etc/haproxy/certs"
 CERT_SOURCE="${CERT_PATH}"
 CERT_DEST="${HAPROXY_CERT_DIR}/${PORTAL_URL}.pem"
 
@@ -135,11 +135,10 @@ run "Installing HAProxy and rsyslog" \
 
 if [[ -f "${HAPROXY_CFG}" ]]; then
     run "Backing up HAProxy configuration" cp -f "${HAPROXY_CFG}" "${HAPROXY_CFG}.bak"
+    chmod 0644 "${HAPROXY_CFG}.bak"
+    chown root:root "${HAPROXY_CFG}.bak"
     run "Removing default HAProxy configuration" rm -f "${HAPROXY_CFG}"
 fi
-
-chmod 0644 "${HAPROXY_CFG}.bak"
-chown root:root "${HAPROXY_CFG}.bak"
 
 ###############################################################################
 # Create directory structure
@@ -151,14 +150,20 @@ run "Creating HAProxy directories" mkdir -p \
     "${HAPROXY_MAP_DIR}"
 
 chmod 0750 "${HAPROXY_CERT_DIR}"
+chown root:root "${HAPROXY_CERT_DIR}"
+
 chmod 0755 "${HAPROXY_CONF_DIR}"
+chown root:root "${HAPROXY_CONF_DIR}"
+
 chmod 0755 "${HAPROXY_MAP_DIR}"
+chown root:root "${HAPROXY_MAP_DIR}"
 
 ###############################################################################
-# hosts.map
+# Creating hosts.map file
 ###############################################################################
 
 touch "${HAPROXY_MAP_FILE}"
+
 chmod 0644 "${HAPROXY_MAP_FILE}"
 chown root:root "${HAPROXY_MAP_FILE}"
 
@@ -172,10 +177,13 @@ cat > /etc/rsyslog.d/49-haproxy.conf <<'EOF'
 module(load="imudp")
 input(type="imudp" port="514")
 
-local0.*    /var/log/haproxy.log
-local1.*    /var/log/haproxy.log
-local2.*    /var/log/haproxy.log
-& stop
+if (
+    $programname == "haproxy" and
+    $syslogfacility-text == "local0"
+) then {
+    action(type="omfile" file="/var/log/haproxy.log")
+    stop
+}
 EOF
 
 chmod 0644 "/etc/rsyslog.d/49-haproxy.conf"
@@ -305,7 +313,7 @@ chmod 0600 "${CERT_DEST}"
 chown root:root "${CERT_DEST}"
 
 ###############################################################################
-# hosts.map entry (regex_replace -> bash replace)
+# Update hosts.map entry
 ###############################################################################
 
 BACKEND_NAME="${PORTAL_URL//[-.]/_}_backend"
@@ -314,17 +322,6 @@ log "Adding ${PORTAL_URL} to HAProxy backend map as ${BACKEND_NAME}"
 
 grep -q "${PORTAL_URL}" "${HAPROXY_MAP_FILE}" || \
     echo "${PORTAL_URL} ${BACKEND_NAME}" >> "${HAPROXY_MAP_FILE}"
-
-###############################################################################
-# /etc/hosts entry (manual IP detection)
-###############################################################################
-
-SYSTEM_IP="$(hostname -I | awk '{print $1}')"
-
-log "Adding Portal host entry to /etc/hosts"
-
-grep -qE "^[[:space:]]*${SYSTEM_IP}[[:space:]]+${PORTAL_URL}$" /etc/hosts || \
-    echo "${SYSTEM_IP} ${PORTAL_URL}" >> /etc/hosts
 
 ###############################################################################
 # Validate HAProxy
@@ -340,6 +337,17 @@ run "Validating HAProxy configuration" \
 run "Stopping HAProxy" systemctl stop haproxy
 run "Starting HAProxy" systemctl start haproxy
 run "Enabling HAProxy" systemctl enable haproxy
+
+###############################################################################
+# /etc/hosts entry (manual IP detection)
+###############################################################################
+
+SYSTEM_IP="$(hostname -I | awk '{print $1}')"
+
+log "Adding Portal host entry to /etc/hosts"
+
+grep -qE "^[[:space:]]*${SYSTEM_IP}[[:space:]]+${PORTAL_URL}$" /etc/hosts || \
+    echo "${SYSTEM_IP} ${PORTAL_URL}" >> /etc/hosts
 
 ###############################################################################
 # Completion
