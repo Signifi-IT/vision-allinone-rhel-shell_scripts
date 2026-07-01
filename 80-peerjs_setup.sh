@@ -2,21 +2,23 @@
 
 ###############################################################################
 # Description:
-#   Deploys PeerJS and integrates it with HAProxy:
-#     - Loads configuration from answers.txt
+#   Deploys PeerJS real-time communication service and integrates it with HAProxy:
+#     - Requires root privileges
+#     - Logs all operations to /var/log/vision_deployment.log
+#     - Loads configuration from answers.txt and validates required variables and files
 #     - Installs Node.js 24
-#     - Installs PM2
-#     - Configures PM2 startup
+#     - Installs and configures PM2 process manager
 #     - Deploys PeerJS application from Bitbucket
-#     - Installs Node dependencies
-#     - Starts PeerJS under PM2
-#     - Persists PM2 configuration
-#     - Installs TLS certificate
-#     - Renders HAProxy backend configuration
-#     - Updates HAProxy hosts.map
+#     - Installs Node.js dependencies using npm ci
+#     - Starts PeerJS application under PM2 and persists process list
+#     - Installs HAProxy TLS certificate for PeerJS endpoint
+#     - Installs Jinja2 to render HAProxy backend configuration
+#     - Generates HAProxy backend configuration
+#     - Removes Jinja2 after rendering configurations
+#     - Updates HAProxy hosts.map routing entry for PeerJS portal
 #     - Validates HAProxy configuration
-#     - Restarts HAProxy
-#     - Updates /etc/hosts
+#     - Restarts, enables, and activates HAProxy service
+#     - Adds PeerJS hostname mapping to /etc/hosts if not present
 ###############################################################################
 
 set -Eeuo pipefail
@@ -58,7 +60,6 @@ fi
 ###############################################################################
 
 run() {
-
     local message="$1"
     shift
 
@@ -117,8 +118,6 @@ CERT_DEST="${HAPROXY_CERT_DIR}/${PEERJS_PORTAL_URL}.pem"
 PEERJS_TEMPLATE="${SCRIPT_DIR}/templates/peerjs_backend.j2"
 PEERJS_HAPROXY_CFG="/etc/haproxy/conf.d/${PEERJS_PORTAL_URL}_backend.cfg"
 
-# HOSTS_MAP="/etc/haproxy/maps/hosts.map"
-
 ###############################################################################
 # Validate required variables
 ###############################################################################
@@ -153,42 +152,29 @@ for file in "${REQUIRED_FILES[@]}"; do
 done
 
 ###############################################################################
-# Validate required commands
+# Install Nodejs 24
 ###############################################################################
 
-for cmd in git npm node pm2 haproxy systemctl python3; do
-    command -v "${cmd}" >/dev/null 2>&1 || true
-done
+run "Cleaning DNF cache" dnf clean all
+run "Rebuilding DNF package metadata cache" dnf makecache -y
 
-###############################################################################
-# Install Node.js 24
-###############################################################################
+run "Resetting Node.js module" dnf module reset nodejs -y
 
-run "Refreshing DNF package cache" \
-    dnf makecache -y
+run "Enabling Node.js 24 module stream" dnf module enable nodejs:24 -y
 
-run "Resetting Node.js module" \
-    dnf module reset nodejs -y
-
-run "Enabling Node.js 24 module stream" \
-    dnf module enable nodejs:24 -y
-
-run "Installing Node.js" \
-    dnf install -y nodejs
+run "Installing Node.js" dnf install -y nodejs
 
 ###############################################################################
 # Install PM2
 ###############################################################################
 
-run "Installing PM2 globally" \
-    /usr/bin/npm install -g pm2
+run "Installing PM2 globally" /usr/bin/npm install -g pm2
 
 ###############################################################################
 # Configure PM2 startup
 ###############################################################################
 
-run "Configuring PM2 startup" \
-    /usr/local/bin/pm2 startup systemd -u root --hp /root
+run "Configuring PM2 startup" /usr/local/bin/pm2 startup systemd -u root --hp /root
 
 ###############################################################################
 # Configure Git SSH
@@ -242,8 +228,7 @@ clone_or_update_repo \
 # Install dependencies
 ###############################################################################
 
-run "Installing PeerJS dependencies" \
-    bash -c "cd '${PEERJS_DIR}' && /usr/bin/npm ci"
+run "Installing PeerJS dependencies" bash -c "cd '${PEERJS_DIR}' && /usr/bin/npm ci"
 
 ###############################################################################
 # Application permissions
@@ -253,8 +238,7 @@ run "Setting PeerJS application permissions" \
     find "${PEERJS_DIR}" -type d -exec chmod 0755 {} + && \
     find "${PEERJS_DIR}" -type f -exec chmod 0644 {} +
 
-run "Setting PeerJS application ownership" \
-    chown -R root:root "${PEERJS_DIR}"
+run "Setting PeerJS application ownership" chown -R root:root "${PEERJS_DIR}"
 
 ###############################################################################
 # PM2 deployment
@@ -263,7 +247,7 @@ run "Setting PeerJS application ownership" \
 if /usr/local/bin/pm2 list | grep -q 'peerjs'; then
 
     run "Restarting PeerJS PM2 application" \
-        bash -c "/usr/local/bin/pm2 restart peerjs"
+        bash -c "cd '${PEERJS_DIR}' && /usr/local/bin/pm2 restart peerjs"
 
 else
 
@@ -276,22 +260,10 @@ run "Persisting PM2 process list" \
     bash -c "cd '${PEERJS_DIR}' && /usr/local/bin/pm2 save"
 
 ###############################################################################
-# Install certificate
-###############################################################################
-
-run "Installing PeerJS TLS certificate" cp -f \
-    "${CERT_SOURCE}" \
-    "${CERT_DEST}"
-
-chmod 0600 "${CERT_DEST}"
-chown root:root "${CERT_DEST}"
-
-###############################################################################
 # Install Jinja2
 ###############################################################################
 
-run "Installing python3-jinja2" \
-    dnf install -y python3-jinja2
+run "Installing python3-jinja2" dnf install -y python3-jinja2
 
 ###############################################################################
 # Render PeerJS backend configuration
@@ -322,31 +294,20 @@ chown root:root "${PEERJS_HAPROXY_CFG}"
 # Remove Jinja2
 ###############################################################################
 
-run "Removing python3-jinja2" \
-    dnf remove -y python3-jinja2
+run "Removing python3-jinja2" dnf remove -y python3-jinja2
+
+###############################################################################
+# Install certificate
+###############################################################################
+
+run "Installing PeerJS TLS certificate" cp -f "${CERT_SOURCE}" "${CERT_DEST}"
+
+chmod 0600 "${CERT_DEST}"
+chown root:root "${CERT_DEST}"
 
 ###############################################################################
 # Update hosts.map entry
 ###############################################################################
-
-# PEERJS_BACKEND_NAME="$(
-#     echo "${PEERJS_PORTAL_URL}" \
-#         | sed 's/[.-]/_/g'
-# )_backend"
-
-# MAP_ENTRY="${PEERJS_PORTAL_URL} ${PEERJS_BACKEND_NAME}"
-
-# if ! grep -Fxq "${MAP_ENTRY}" "${HOSTS_MAP}"; then
-
-#     log "Adding PeerJS host mapping"
-
-#     echo "${MAP_ENTRY}" >> "${HOSTS_MAP}"
-
-# else
-
-#     log "PeerJS host mapping already exists"
-
-# fi
 
 BACKEND_NAME="${PEERJS_PORTAL_URL//[-.]/_}_backend"
 
@@ -359,8 +320,7 @@ grep -q "${PEERJS_PORTAL_URL}" "${HAPROXY_MAP_FILE}" || \
 # Validate HAProxy
 ###############################################################################
 
-run "Validating HAProxy configuration" \
-    haproxy -c -f "${HAPROXY_CFG}" -f "${HAPROXY_CONF_DIR}"
+run "Validating HAProxy configuration" haproxy -c -f "${HAPROXY_CFG}" -f "${HAPROXY_CONF_DIR}"
 
 ###############################################################################
 # Restart HAProxy
@@ -371,33 +331,8 @@ run "Starting HAProxy" systemctl start haproxy
 run "Enabling HAProxy" systemctl enable haproxy
 
 ###############################################################################
-# Update /etc/hosts
+# Update /etc/hosts entry
 ###############################################################################
-
-# HOST_IP="$(
-#     ip route get 1.1.1.1 \
-#         | awk '{
-#             for(i=1;i<=NF;i++)
-#                 if($i=="src") {
-#                     print $(i+1)
-#                     exit
-#                 }
-#         }'
-# )"
-
-# HOST_ENTRY="${HOST_IP} ${PEERJS_PORTAL_URL}"
-
-# if ! grep -Eq "^[[:space:]]*${HOST_IP}[[:space:]]+${PEERJS_PORTAL_URL}$" /etc/hosts; then
-
-#     log "Adding PeerJS host entry to /etc/hosts"
-
-#     echo "${HOST_ENTRY}" >> /etc/hosts
-
-# else
-
-#     log "PeerJS host entry already exists"
-
-# fi
 
 SYSTEM_IP="$(hostname -I | awk '{print $1}')"
 
@@ -410,4 +345,5 @@ grep -qE "^[[:space:]]*${SYSTEM_IP}[[:space:]]+${PEERJS_PORTAL_URL}$" /etc/hosts
 # Completion
 ###############################################################################
 
+unset GIT_SSH_COMMAND
 log "PeerJS deployment completed successfully."

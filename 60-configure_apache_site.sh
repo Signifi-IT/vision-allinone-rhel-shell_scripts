@@ -2,20 +2,23 @@
 
 ###############################################################################
 # Description:
-#   Configures Apache HTTPD for the Vision application:
-#     - Loads configuration from answers.txt
-#     - Sets application ownership and permissions
-#     - Removes default Apache configuration files
-#     - Creates mod_status configuration
-#     - Configures Apache listener on 127.0.0.1:7080
-#     - Applies Apache security directives
+#   Configures Apache HTTPD for the Vision application on RHEL-based systems:
+#     - Requires root privileges
+#     - Logs all operations to /var/log/vision_deployment.log
+#     - Loads configuration from answers.txt and validates required variables
+#     - Applies recursive application ownership and permission settings
+#     - Removes default Apache configuration files and unused modules
+#     - Configures mod_status and Apache security hardening directives
+#     - Configures Apache listener to listen on 127.0.0.1:7080 by updating Listen directives
 #     - Configures global ServerName
-#     - Renders Apache virtual host configuration from Jinja2 template
-#     - Creates Apache log directories
-#     - Comments default DocumentRoot
-#     - Configures SELinux HTTP port mapping
-#     - Validates Apache configuration
-#     - Enables and restarts Apache service
+#     - Installs Jinja2 to render virtual host configuration
+#     - Generates Apache virtual host configuration from Jinja2 template
+#     - Removes Jinja2 after rendering
+#     - Creates and configures application-specific Apache log directory
+#     - Comments default DocumentRoot in main Apache configuration
+#     - Configures SELinux HTTP port mapping for 7080
+#     - Validates Apache configuration syntax before restart
+#     - Enables and restarts Apache HTTPD service
 ###############################################################################
 
 set -Eeuo pipefail
@@ -135,13 +138,14 @@ fi
 ###############################################################################
 
 backup_file_if_needed() {
-
     local file="$1"
     local backup="${file}.bak"
 
     if [[ -f "${file}" ]] && [[ ! -f "${backup}" ]]; then
         log "Creating backup: ${backup}"
         cp -p "${file}" "${backup}"
+    else
+        log "Backup already exists: ${backup}"
     fi
 }
 
@@ -149,15 +153,11 @@ backup_file_if_needed() {
 # Application permissions
 ###############################################################################
 
-# run "Setting application permissions" \
-#     chmod -R 0755 "${APP_DIR}"
-
 run "Setting application permissions" \
     find "${APP_DIR}" -type d -exec chmod 0755 {} + && \
     find "${APP_DIR}" -type f -exec chmod 0644 {} +
 
-run "Setting application ownership" \
-    chown -R root:root "${APP_DIR}"
+run "Setting application ownership" chown -R root:root "${APP_DIR}"
 
 ###############################################################################
 # Remove default Apache configuration
@@ -206,9 +206,8 @@ chown root:root "${STATUS_CONF}"
 
 backup_file_if_needed "${HTTPD_CONF}"
 
-sed -ri \
-    's|^[[:space:]]*Listen[[:space:]].*|Listen 127.0.0.1:7080|' \
-    "${HTTPD_CONF}"
+run "Configure Apache port to listen on 7080" \
+    sed -ri 's|^[[:space:]]*Listen[[:space:]].*|Listen 127.0.0.1:7080|' "${HTTPD_CONF}"
 
 ###############################################################################
 # Apache security configuration
@@ -226,10 +225,10 @@ chmod 0644 "${SECURITY_CONF}"
 chown root:root "${SECURITY_CONF}"
 
 ###############################################################################
-# ServerName
+# Configuring ServerName globally
 ###############################################################################
 
-log "Ensuring Apache ServerName is configured"
+log "Ensuring Global Apache ServerName is configured"
 
 if ! grep -q '^ServerName localhost$' "${HTTPD_CONF}"; then
     echo "ServerName localhost" >> "${HTTPD_CONF}"
@@ -239,8 +238,7 @@ fi
 # Install Jinja2
 ###############################################################################
 
-run "Installing python3-jinja2" \
-    dnf install -y python3-jinja2
+run "Installing python3-jinja2" dnf install -y python3-jinja2
 
 ###############################################################################
 # Render virtual host configuration
@@ -275,29 +273,24 @@ chown root:root "${SITE_CONFIG}"
 # Remove Jinja2
 ###############################################################################
 
-run "Removing python3-jinja2" \
-    dnf remove -y python3-jinja2
+run "Removing python3-jinja2" dnf remove -y python3-jinja2
 
 ###############################################################################
 # Apache log directory
 ###############################################################################
 
-run "Creating Apache log directory" \
-    mkdir -p "/var/log/httpd/${PORTAL_URL}"
+run "Creating Apache log directory" mkdir -p "/var/log/httpd/${PORTAL_URL}"
 
-run "Setting Apache log directory ownership" \
-    chown root:root "/var/log/httpd/${PORTAL_URL}"
+run "Setting Apache log directory ownership" chown root:root "/var/log/httpd/${PORTAL_URL}"
 
-run "Setting Apache log directory permissions" \
-    chmod 0755 "/var/log/httpd/${PORTAL_URL}"
+run "Setting Apache log directory permissions" chmod 0755 "/var/log/httpd/${PORTAL_URL}"
 
 ###############################################################################
 # Comment default DocumentRoot
 ###############################################################################
 
-sed -ri \
-    's|^(DocumentRoot[[:space:]]+"/var/www/html")|# \1|' \
-    "${HTTPD_CONF}"
+run "Commenting the default Apache DocumentRoot" \
+    sed -ri 's|^(DocumentRoot[[:space:]]+"/var/www/html")|# \1|' "${HTTPD_CONF}"
 
 ###############################################################################
 # SELinux port
@@ -305,8 +298,7 @@ sed -ri \
 
 if ! semanage port -l | grep -qE '^http_port_t.*\b7080\b'; then
 
-    run "Adding SELinux HTTP port 7080" \
-        semanage port -a -t http_port_t -p tcp 7080
+    run "Adding SELinux HTTP port 7080" semanage port -a -t http_port_t -p tcp 7080
 
 else
 
@@ -318,21 +310,20 @@ fi
 # Validate Apache
 ###############################################################################
 
-run "Validating Apache configuration" \
-    apachectl configtest
+run "Validating Apache configuration" apachectl configtest
 
 ###############################################################################
 # Enable and restart Apache
 ###############################################################################
 
-run "Enabling HTTPD service" \
-    systemctl enable httpd
+run "Enabling HTTPD service" systemctl enable httpd
 
-run "Restarting HTTPD service" \
-    systemctl restart httpd
+run "Restarting HTTPD service" systemctl restart httpd
 
 ###############################################################################
 # Completion
 ###############################################################################
 
+unset PORTAL_URL
+unset ALLOWED_IPS
 log "Apache configuration completed successfully."

@@ -2,19 +2,21 @@
 
 ###############################################################################
 # Description:
-#   Configures PostgreSQL application database:
-#     - Loads configuration from answers.txt
-#     - Starts PostgreSQL service and verifies readiness
-#     - Sets postgres administrator password
+#   Configures PostgreSQL application database and access on RHEL-based systems:
+#     - Requires root privileges
+#     - Logs all operations to /var/log/vision_deployment.log
+#     - Loads configuration from answers.txt and validates required variables
+#     - Waits for PostgreSQL service readiness
+#     - Sets PostgreSQL administrator password
 #     - Backs up pg_hba.conf before modification
-#     - Enforces scram-sha-256 authentication rules
-#     - Removes duplicate pg_hba.conf entries
-#     - Restarts PostgreSQL after pg_hba.conf modifications
-#     - Creates application user if missing
-#     - Creates application database if missing
-#     - Grants database privileges
+#     - Enforces SCRAM-SHA-256 authentication rules for local and network access
+#       by removing duplicates and appending validated entries
+#     - Restarts PostgreSQL after authentication changes
+#     - Creates application database user credentials
+#     - Creates application database
+#     - Grants required database privileges to application user
 #     - Restores application database from backup
-#     - Verifies migration table contents
+#     - Executes migration table query and logs results for verification
 ###############################################################################
 
 set -Eeuo pipefail
@@ -85,6 +87,7 @@ if [[ ! -f "$CONFIG_FILE" ]]; then
 fi
 
 log "Loading configuration from $CONFIG_FILE..."
+
 if ! source "$CONFIG_FILE"; then
     error "Failed to load config file"
     exit 1
@@ -135,14 +138,14 @@ fi
 log "Backup file verified: ${BACKUP_FILE}"
 
 ###############################################################################
-# Backup pg_hba.conf
+# Backup helper
 ###############################################################################
 
 backup_file_if_needed() {
     local file="$1"
     local backup="${file}.bak"
 
-    if [[ ! -f "${backup}" ]]; then
+    if [[ -f "${file}" ]] && [[ ! -f "${backup}" ]]; then
         log "Creating backup: ${backup}"
         cp -p "${file}" "${backup}"
     else
@@ -153,8 +156,6 @@ backup_file_if_needed() {
 ###############################################################################
 # Ensure PostgreSQL running
 ###############################################################################
-
-run "Starting PostgreSQL service" systemctl start postgresql-14
 
 log "Waiting for PostgreSQL readiness..."
 
@@ -179,12 +180,11 @@ fi
 ###############################################################################
 
 run "Setting postgres admin password" \
-    sudo -u postgres "${PSQL}" -p "${POSTGRES_PORT}" \
-    -d postgres \
+    sudo -u postgres "${PSQL}" -p "${POSTGRES_PORT}" -d postgres \
     -c "ALTER USER postgres PASSWORD '${POSTGRES_ADMIN_PASSWORD}';"
 
 ###############################################################################
-# pg_hba.conf
+# Updating pg_hba.conf
 ###############################################################################
 
 backup_file_if_needed "${PG_HBA}"
@@ -217,11 +217,9 @@ for network in "${DB_NETWORK_AUTHENTICATION_HBA[@]}"; do
 
 done
 
-run "Restarting PostgreSQL to apply pg_hba.conf changes" \
-    systemctl restart postgresql-14
+run "Restarting PostgreSQL to apply pg_hba.conf changes" systemctl restart postgresql-14
 
-run "Enabling PostgreSQL service" \
-    systemctl enable postgresql-14
+run "Enabling PostgreSQL service" systemctl enable postgresql-14
 
 log "Waiting for PostgreSQL readiness after restart..."
 
@@ -308,7 +306,7 @@ else
 fi
 
 ###############################################################################
-# Grant privileges
+# Grant privileges on database
 ###############################################################################
 
 run "Granting database privileges" \
@@ -337,22 +335,6 @@ run "Restoring database backup" \
 # Migration verification
 ###############################################################################
 
-# log "Checking migration version..."
-
-# VERSION=$(
-#     PGPASSWORD="${APP_DB_PASSWORD}" \
-#     "${PSQL}" \
-#         -h 127.0.0.1 \
-#         -p "${POSTGRES_PORT}" \
-#         -U "${APP_DB_USER}" \
-#         -d "${APP_DB_NAME}" \
-#         -At \
-#         # -c "SELECT version FROM migrations LIMIT 1;"
-#         -c "SELECT * FROM migrations;"
-# )
-
-# log "Migration version: ${VERSION}"
-
 log "Querying migrations table for verification..."
 
 RESULT=$(
@@ -372,4 +354,5 @@ log "Migrations table output: ${RESULT}"
 # Completion
 ###############################################################################
 
+unset PGPASSWORD
 log "PostgreSQL application setup completed successfully."

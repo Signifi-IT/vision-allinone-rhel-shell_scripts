@@ -2,15 +2,20 @@
 
 ###############################################################################
 # Description:
-#   Configures EPEL, PHP 8.2, PostgreSQL 14, and core services on RHEL 9:
-#     - Imports EPEL GPG key
-#     - Installs EPEL repository
-#     - Enables CodeReady Builder repo
-#     - Configures PHP 8.2 module
-#     - Installs required packages
-#     - Initializes PostgreSQL 14
-#     - Changes PostgreSQL port to 5431
-#     - Enables and starts services
+#   Configures a full application stack on RHEL 9, including EPEL, PHP 8.2,
+#   PostgreSQL 14, and supporting system services:
+#     - Requires root privileges
+#     - Logs all actions to /var/log/vision_deployment.log
+#     - Imports and installs EPEL repository
+#     - Enables CodeReady Builder repository
+#     - Selectively enables required DNF repositories
+#     - Refreshes DNF metadata and performs system upgrade
+#     - Resets and enables PHP 8.2 module stream and installs PHP profile
+#     - Installs PostgreSQL 14 and related application packages
+#     - Initializes PostgreSQL database
+#     - Changes PostgreSQL port from 5432 to 5431
+#     - Unmasks httpd service
+#     - Enables and starts PostgreSQL and system services (httpd, php-fpm, auditd, restorecond)
 #     - Configures SELinux booleans
 ###############################################################################
 
@@ -99,10 +104,30 @@ run "Enabling CodeReady Builder repository" \
     subscription-manager repos --enable codeready-builder-for-rhel-9-x86_64-rpms
 
 ###############################################################################
-# DNF refresh
+# Disable all repositories
 ###############################################################################
 
-run "Refreshing DNF package metadata" dnf makecache -y
+run "Disabling all DNF repositories" dnf config-manager --set-disabled '*'
+
+###############################################################################
+# Enable only required repositories
+###############################################################################
+
+run "Enabling required DNF repositories" \
+    dnf config-manager --set-enabled \
+        codeready-builder-for-rhel-9-x86_64-rpms \
+        epel \
+        pgdg-common \
+        pgdg14 \
+        rhel-9-for-x86_64-appstream-rpms \
+        rhel-9-for-x86_64-baseos-rpms
+
+###############################################################################
+# Refresh DNF Metadata
+###############################################################################
+
+run "Cleaning DNF cache" dnf clean all
+run "Rebuilding DNF package metadata cache" dnf makecache -y
 
 ###############################################################################
 # PHP module configuration
@@ -115,7 +140,7 @@ run "Enabling PHP 8.2 module stream" dnf module enable php:8.2 -y
 # System upgrade
 ###############################################################################
 
-run "Upgrading all packages" dnf upgrade -y --refresh
+run "Upgrading system packages" dnf upgrade -y --refresh
 
 ###############################################################################
 # PHP profile
@@ -124,10 +149,11 @@ run "Upgrading all packages" dnf upgrade -y --refresh
 run "Installing PHP 8.2 common profile" dnf install -y "@php:8.2/common"
 
 ###############################################################################
-# DNF refresh
+# Refresh DNF Metadata
 ###############################################################################
 
-run "Refreshing DNF package metadata" dnf makecache -y
+run "Cleaning DNF cache" dnf clean all
+run "Rebuilding DNF package metadata cache" dnf makecache -y
 
 ###############################################################################
 # Required packages
@@ -167,8 +193,7 @@ run "Installing application packages" dnf install -y "${REQUIRED_PACKAGES[@]}"
 ###############################################################################
 
 if [[ ! -d "${POSTGRES_DATA_DIR}" ]] || [[ ! -f "${POSTGRES_VERSION_FILE}" ]]; then
-    run "Initializing PostgreSQL database" \
-        /usr/pgsql-14/bin/postgresql-14-setup initdb
+    run "Initializing PostgreSQL database" /usr/pgsql-14/bin/postgresql-14-setup initdb
 else
     log "PostgreSQL already initialized"
 fi
@@ -182,8 +207,7 @@ POSTGRES_RESTART_NEEDED=0
 if grep -qE '^[[:space:]]*#?[[:space:]]*port[[:space:]]*=[[:space:]]*5432([[:space:]]*#.*)?$' "${POSTGRES_CONF}"; then
     run "Changing PostgreSQL port from 5432 to ${POSTGRES_PORT}" \
         sed -i \
-        's/^[[:space:]]*#\?[[:space:]]*port[[:space:]]*=[[:space:]]*5432/port = '"${POSTGRES_PORT}"'/g' \
-        "${POSTGRES_CONF}"
+        's/^[[:space:]]*#\?[[:space:]]*port[[:space:]]*=[[:space:]]*5432/port = '"${POSTGRES_PORT}"'/g' "${POSTGRES_CONF}"
 
     POSTGRES_RESTART_NEEDED=1
 else
@@ -194,6 +218,10 @@ else
     fi
 fi
 
+if [[ "${POSTGRES_RESTART_NEEDED}" -eq 1 ]]; then
+    run "Restarting PostgreSQL to apply port change" systemctl restart postgresql-14
+fi
+
 ###############################################################################
 # Services
 ###############################################################################
@@ -202,16 +230,7 @@ run "Unmasking httpd service" systemctl unmask httpd
 
 run "Reloading systemd daemon" systemctl daemon-reload
 
-run "Enabling PostgreSQL service" \
-    systemctl enable postgresql-14
-
-run "Starting PostgreSQL service" \
-    systemctl start postgresql-14
-
-if [[ "${POSTGRES_RESTART_NEEDED}" -eq 1 ]]; then
-    run "Restarting PostgreSQL to apply port change" \
-        systemctl restart postgresql-14
-fi
+run "Starting and Enabling PostgreSQL service" systemctl enable --now postgresql-14
 
 ###############################################################################
 # Verify PostgreSQL readiness
@@ -238,8 +257,7 @@ done
 ###############################################################################
 
 for svc in httpd php-fpm auditd restorecond; do
-    run "Enabling and starting ${svc}" \
-        systemctl enable --now "${svc}"
+    run "Enabling and starting ${svc}" systemctl enable --now "${svc}"
 done
 
 ###############################################################################
@@ -252,11 +270,9 @@ SEBOOLS=(
 )
 
 for bool in "${SEBOOLS[@]}"; do
-    run "Enabling SELinux boolean (runtime) ${bool}" \
-        setsebool "${bool}" on
+    run "Enabling SELinux boolean (runtime) ${bool}" setsebool "${bool}" on
 
-    run "Enabling SELinux boolean (persistent) ${bool}" \
-        setsebool -P "${bool}" on
+    run "Enabling SELinux boolean (persistent) ${bool}" setsebool -P "${bool}" on
 done
 
 ###############################################################################

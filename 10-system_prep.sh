@@ -3,15 +3,18 @@
 ###############################################################################
 # Description:
 #   Performs system maintenance and configuration on RHEL-based systems:
-#     - Loads timezone from answers.txt
-#     - Refreshes DNF metadata
-#     - Installs required utilities
-#     - Removes Vim packages
-#     - Performs full system upgrade
+#     - Requires root privileges
+#     - Logs all actions to /var/log/vision_deployment.log
+#     - Loads and validates configuration from answers.txt
+#     - Validates the configured system timezone
+#     - Cleans and rebuilds the DNF package metadata cache
+#     - Installs required system utilities and dependencies
+#     - Removes Vim editor packages
+#     - Performs a full system upgrade
 #     - Removes unused packages
-#     - Configures Nano as default editor
-#     - Sets system timezone
-#     - Reboots system
+#     - Configures Nano as the default system editor
+#     - Sets the system timezone
+#     - Schedules a system reboot in 1 minute to apply changes
 ###############################################################################
 
 set -Eeuo pipefail
@@ -82,6 +85,7 @@ if [[ ! -f "$CONFIG_FILE" ]]; then
 fi
 
 log "Loading configuration from $CONFIG_FILE..."
+
 if ! source "$CONFIG_FILE"; then
     error "Failed to load config file"
     exit 1
@@ -138,13 +142,13 @@ REMOVE_PACKAGES=(
 # DNF operations
 ###############################################################################
 
-run "Refreshing DNF cache" dnf clean all
-run "Updating DNF cache" dnf makecache -y
+run "Cleaning DNF cache" dnf clean all
+run "Rebuilding DNF package metadata cache" dnf makecache -y
 
 run "Installing required packages" dnf install -y "${REQUIRED_PACKAGES[@]}"
 
-run "Removing Vim packages" dnf remove -y "${REMOVE_PACKAGES[@]}" \
-    || warn "Failed to remove one or more Vim packages"
+run "Removing vim editor packages" dnf remove -y "${REMOVE_PACKAGES[@]}" \
+    || warn "Failed to remove one or more vim editor packages"
 
 run "Upgrading system packages" dnf upgrade -y --refresh
 
@@ -154,7 +158,7 @@ run "Removing unused packages" dnf autoremove -y
 # Editor configuration
 ###############################################################################
 
-log "Configuring system-wide editor settings..."
+log "Configuring system-wide editor settings"
 
 cat > /etc/profile.d/editor.sh <<'EOF'
 export EDITOR=nano

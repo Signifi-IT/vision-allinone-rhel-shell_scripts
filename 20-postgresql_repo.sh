@@ -2,12 +2,15 @@
 
 ###############################################################################
 # Description:
-#   Configures PostgreSQL repositories on RHEL-based systems:
-#     - Refreshes DNF metadata
-#     - Disables built-in PostgreSQL module
-#     - Imports PostgreSQL GPG signing key
-#     - Installs PostgreSQL repository RPM
-#     - Ensures PostgreSQL module remains disabled
+#   Configures the PostgreSQL Yum repository on RHEL-based systems:
+#     - Requires root privileges
+#     - Logs all actions to /var/log/vision_deployment.log
+#     - Cleans and rebuilds the DNF package metadata cache
+#     - Disables the built-in PostgreSQL module
+#     - Imports the PostgreSQL repository GPG signing key
+#     - Installs the PostgreSQL repository RPM
+#     - Refreshes DNF metadata after repository installation
+#     - Ensures the built-in PostgreSQL module remains disabled
 ###############################################################################
 
 set -Eeuo pipefail
@@ -77,7 +80,8 @@ PGDG_REPO_RPM="https://download.postgresql.org/pub/repos/yum/reporpms/EL-9-x86_6
 # Refresh DNF Metadata
 ###############################################################################
 
-run "Refreshing DNF package metadata" dnf makecache -y
+run "Cleaning DNF cache" dnf clean all
+run "Rebuilding DNF package metadata cache" dnf makecache -y
 
 ###############################################################################
 # Disable Built-in PostgreSQL Module
@@ -97,7 +101,8 @@ run "Importing PostgreSQL repository GPG key" rpm --import "${PGDG_GPG_KEY_URL}"
 
 run "Installing PostgreSQL repository RPM" dnf install -y "${PGDG_REPO_RPM}"
 
-run "Refreshing DNF package metadata" dnf makecache -y
+run "Cleaning DNF cache" dnf clean all
+run "Rebuilding DNF package metadata cache" dnf makecache -y
 
 ###############################################################################
 # Ensure PostgreSQL Module Remains Disabled

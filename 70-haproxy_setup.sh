@@ -2,15 +2,21 @@
 
 ###############################################################################
 # Description:
-#   Configures HAProxy and rsyslog for Vision application:
-#     - Installs required packages
-#     - Configures rsyslog logging
+#   Configures HAProxy and rsyslog for the Vision application on RHEL-based systems:
+#     - Requires root privileges
+#     - Logs all operations to /var/log/vision_deployment.log
+#     - Refreshes DNF metadata and installs HAProxy and rsyslog packages
+#     - Configures custom rsyslog for HAProxy logging
 #     - Prepares HAProxy directory structure
-#     - Deploys HAProxy configuration files
-#     - Renders Jinja2-based HAProxy templates
+#     - Removes default HAProxy configuration file and deploys new configs
+#     - Installs Jinja2 to render templates
+#     - Generates HAProxy configuration files using Jinja2 templates
+#     - Removes Jinja2 after rendering configurations
 #     - Installs TLS certificate
-#     - Configures hosts mapping and /etc/hosts entries
-#     - Validates and restarts HAProxy service
+#     - Maintains HAProxy host mapping file (hosts.map) with backend routing entries
+#     - Adds portal entry to /etc/hosts
+#     - Validates HAProxy configuration
+#     - Restarts, enables, and activates HAProxy service
 ###############################################################################
 
 set -Eeuo pipefail
@@ -81,24 +87,11 @@ if [[ ! -f "${CONFIG_FILE}" ]]; then
 fi
 
 log "Loading configuration from ${CONFIG_FILE}..."
-source "${CONFIG_FILE}"
 
-###############################################################################
-# Validate required variables
-###############################################################################
-
-REQUIRED_VARS=(
-    PORTAL_URL
-    CERT_PATH
-    HAPROXY_ALLOWED_STATS_IPS
-)
-
-for var in "${REQUIRED_VARS[@]}"; do
-    if [[ -z "${!var:-}" ]]; then
-        error "Required variable '${var}' is not defined"
-        exit 1
-    fi
-done
+if ! source "${CONFIG_FILE}"; then
+    error "Failed to load configuration file"
+    exit 1
+fi
 
 ###############################################################################
 # Constants
@@ -123,22 +116,58 @@ UNKNOWN_BACKEND_SRC="${SCRIPT_DIR}/files/haproxy_config/unknown_host_backend.cfg
 HAPROXY_MAIN_SRC="${SCRIPT_DIR}/files/haproxy_config/haproxy.cfg"
 
 ###############################################################################
+# Validate required variables
+###############################################################################
+
+REQUIRED_VARS=(
+    PORTAL_URL
+    CERT_PATH
+    HAPROXY_ALLOWED_STATS_IPS
+)
+
+for var in "${REQUIRED_VARS[@]}"; do
+    if [[ -z "${!var:-}" ]]; then
+        error "Required variable '${var}' is not defined"
+        exit 1
+    fi
+done
+
+###############################################################################
+# Backup helper
+###############################################################################
+
+backup_file_if_needed() {
+    local file="$1"
+    local backup="${file}.bak"
+
+    if [[ -f "${file}" ]] && [[ ! -f "${backup}" ]]; then
+        log "Creating backup: ${backup}"
+        cp -p "${file}" "${backup}"
+    else
+        log "Backup already exists: ${backup}"
+    fi
+}
+
+###############################################################################
+# Refresh DNF Metadata
+###############################################################################
+
+run "Cleaning DNF cache" dnf clean all
+run "Rebuilding DNF package metadata cache" dnf makecache -y
+
+###############################################################################
 # Install packages
 ###############################################################################
 
-run "Installing HAProxy and rsyslog" \
-    dnf install -y haproxy rsyslog
+run "Installing HAProxy and rsyslog" dnf install -y haproxy rsyslog
 
 ###############################################################################
 # Backup and remove default config
 ###############################################################################
 
-if [[ -f "${HAPROXY_CFG}" ]]; then
-    run "Backing up HAProxy configuration" cp -f "${HAPROXY_CFG}" "${HAPROXY_CFG}.bak"
-    chmod 0644 "${HAPROXY_CFG}.bak"
-    chown root:root "${HAPROXY_CFG}.bak"
-    run "Removing default HAProxy configuration" rm -f "${HAPROXY_CFG}"
-fi
+backup_file_if_needed "${HAPROXY_CFG}"
+
+run "Removing default HAProxy configuration" rm -f "${HAPROXY_CFG}"
 
 ###############################################################################
 # Create directory structure
@@ -162,7 +191,7 @@ chown root:root "${HAPROXY_MAP_DIR}"
 # Creating hosts.map file
 ###############################################################################
 
-touch "${HAPROXY_MAP_FILE}"
+run "Creating hosts.map file" touch "${HAPROXY_MAP_FILE}"
 
 chmod 0644 "${HAPROXY_MAP_FILE}"
 chown root:root "${HAPROXY_MAP_FILE}"
@@ -171,8 +200,9 @@ chown root:root "${HAPROXY_MAP_FILE}"
 # rsyslog configuration
 ###############################################################################
 
-rm -f /etc/rsyslog.d/49-haproxy.conf
+run "Removing default rsyslog HAProxy configuration file" rm -f /etc/rsyslog.d/49-haproxy.conf
 
+run "Creating rsyslog HAProxy configurtion for HAProxy logging" \
 cat > /etc/rsyslog.d/49-haproxy.conf <<'EOF'
 module(load="imudp")
 input(type="imudp" port="514")
@@ -189,24 +219,24 @@ EOF
 chmod 0644 "/etc/rsyslog.d/49-haproxy.conf"
 chown root:root "/etc/rsyslog.d/49-haproxy.conf"
 
-touch /var/log/haproxy.log
+run "Creating HAProxy log file" touch /var/log/haproxy.log
 chmod 0640 /var/log/haproxy.log
 chown root:root /var/log/haproxy.log
 
-run "Restarting rsyslog" systemctl restart rsyslog
+run "Restarting rsyslog service" systemctl restart rsyslog
 
 ###############################################################################
 # Deploy HAProxy base configs
 ###############################################################################
 
-run "Deploying HAProxy base configuration" cp -f \
+run "Deploying HAProxy default configuration file" cp -f \
     "${HAPROXY_MAIN_SRC}" \
     "${HAPROXY_CFG}"
    
 chmod 0644 "${HAPROXY_CFG}"
 chown root:root "${HAPROXY_CFG}"
 
-run "Deploying unknown host backend" cp -f \
+run "Deploying HAProxy unknown host backend configuration file" cp -f \
     "${UNKNOWN_BACKEND_SRC}" \
     "${HAPROXY_CONF_DIR}/02-unknown-host.cfg"
 
@@ -214,11 +244,10 @@ chmod 0644 "${HAPROXY_CONF_DIR}/02-unknown-host.cfg"
 chown root:root "${HAPROXY_CONF_DIR}/02-unknown-host.cfg"
 
 ###############################################################################
-# Jinja2 install (temporary)
+# Jinja2 install
 ###############################################################################
 
-run "Installing python3-jinja2" \
-    dnf install -y python3-jinja2
+run "Installing python3-jinja2" dnf install -y python3-jinja2
 
 ###############################################################################
 # Render global frontend config
@@ -305,9 +334,7 @@ run "Removing python3-jinja2" dnf remove -y python3-jinja2
 # Install TLS certificate
 ###############################################################################
 
-run "Installing TLS certificate" cp -f \
-    "${CERT_SOURCE}" \
-    "${CERT_DEST}"
+run "Installing TLS certificate" cp -f "${CERT_SOURCE}" "${CERT_DEST}"
 
 chmod 0600 "${CERT_DEST}"
 chown root:root "${CERT_DEST}"
@@ -327,8 +354,7 @@ grep -q "${PORTAL_URL}" "${HAPROXY_MAP_FILE}" || \
 # Validate HAProxy
 ###############################################################################
 
-run "Validating HAProxy configuration" \
-    haproxy -c -f "${HAPROXY_CFG}" -f "${HAPROXY_CONF_DIR}"
+run "Validating HAProxy configuration" haproxy -c -f "${HAPROXY_CFG}" -f "${HAPROXY_CONF_DIR}"
 
 ###############################################################################
 # Restart HAProxy
@@ -339,7 +365,7 @@ run "Starting HAProxy" systemctl start haproxy
 run "Enabling HAProxy" systemctl enable haproxy
 
 ###############################################################################
-# /etc/hosts entry (manual IP detection)
+# Update /etc/hosts entry
 ###############################################################################
 
 SYSTEM_IP="$(hostname -I | awk '{print $1}')"

@@ -2,17 +2,21 @@
 
 ###############################################################################
 # Description:
-#   Deploys the Vision application from Git repositories:
-#     - Loads configuration from answers.txt
-#     - Validates required files and configuration
-#     - Creates application directory structure
-#     - Clones or updates application repositories
-#     - Deploys media, API and mobile assets
-#     - Creates application session directory
-#     - Removes temporary repository directories
-#     - Deploys PHP configuration files
-#     - Validates PHP configuration
-#     - Restarts and enables PHP-FPM
+#   Deploys the Vision application from Git repositories on RHEL-based systems:
+#     - Requires root privileges
+#     - Logs all operations to /var/log/vision_deployment.log
+#     - Loads and validates configuration from answers.txt
+#     - Validates required variables, and files
+#     - Creates application directory structure under /var/www
+#     - Configures Bitbucket SSH key for secure Git access
+#     - Clones or synchronizes application, media, API, and mobile repositories
+#       using branch checkout and hard reset to origin state
+#     - Deploys media, API, and mobile assets into application directory structure
+#     - Creates required application session directories
+#     - Removes temporary repository working directories after deployment
+#     - Backs up and deploys PHP configuration files (php.ini, www.conf)
+#     - Validates PHP-FPM configuration
+#     - Enables and restarts PHP-FPM service
 ###############################################################################
 
 set -Eeuo pipefail
@@ -143,17 +147,6 @@ for file in "${REQUIRED_FILES[@]}"; do
 done
 
 ###############################################################################
-# Validate required commands
-###############################################################################
-
-for cmd in git php-fpm systemctl; do
-    if ! command -v "${cmd}" >/dev/null 2>&1; then
-        error "Required command not found: ${cmd}"
-        exit 1
-    fi
-done
-
-###############################################################################
 # Backup helper
 ###############################################################################
 
@@ -161,9 +154,11 @@ backup_file_if_needed() {
     local file="$1"
     local backup="${file}.bak"
 
-    if [[ -f "${file}" && ! -f "${backup}" ]]; then
+    if [[ -f "${file}" ]] && [[ ! -f "${backup}" ]]; then
         log "Creating backup: ${backup}"
         cp -p "${file}" "${backup}"
+    else
+        log "Backup already exists: ${backup}"
     fi
 }
 
@@ -184,6 +179,7 @@ chown root:root "${APP_DIR}"
 log "Configuring Bitbucket SSH key permissions"
 
 chmod 0400 "${BITBUCKET_KEY}"
+chowm root:root "${BITBUCKET_KEY}"
 
 export GIT_SSH_COMMAND="ssh -i ${BITBUCKET_KEY} -o StrictHostKeyChecking=accept-new"
 
@@ -199,14 +195,11 @@ clone_or_update_repo() {
 
     if [[ -d "${dest}/.git" ]]; then
 
-        run "Updating repository metadata" \
-            git -C "${dest}" fetch --all --prune --quiet
+        run "Updating repository metadata" git -C "${dest}" fetch --all --prune --quiet
 
-        run "Checking out ${branch}" \
-            git -C "${dest}" checkout -q "${branch}"
+        run "Checking out ${branch}" git -C "${dest}" checkout -q "${branch}"
 
-        run "Synchronizing repository" \
-            git -C "${dest}" reset --hard "origin/${branch}"
+        run "Synchronizing repository" git -C "${dest}" reset --hard "origin/${branch}"
 
     else
 
@@ -294,11 +287,9 @@ done
 backup_file_if_needed "${PHP_INI_DEST}"
 backup_file_if_needed "${PHP_WWW_CONF_DEST}"
 
-run "Deploying php.ini" \
-    cp -f "${PHP_INI_SOURCE}" "${PHP_INI_DEST}"
+run "Deploying php.ini" cp -f "${PHP_INI_SOURCE}" "${PHP_INI_DEST}"
 
-run "Deploying www.conf" \
-    cp -f "${PHP_WWW_CONF_SOURCE}" "${PHP_WWW_CONF_DEST}"
+run "Deploying www.conf" cp -f "${PHP_WWW_CONF_SOURCE}" "${PHP_WWW_CONF_DEST}"
 
 chmod 0644 "${PHP_INI_DEST}" "${PHP_WWW_CONF_DEST}"
 chown root:root "${PHP_INI_DEST}" "${PHP_WWW_CONF_DEST}"
@@ -307,21 +298,19 @@ chown root:root "${PHP_INI_DEST}" "${PHP_WWW_CONF_DEST}"
 # Validate PHP configuration
 ###############################################################################
 
-run "Validating PHP-FPM configuration" \
-    php-fpm -t
+run "Validating PHP-FPM configuration" php-fpm -t -c %s
 
 ###############################################################################
 # Restart PHP-FPM
 ###############################################################################
 
-run "Enabling PHP-FPM service" \
-    systemctl enable php-fpm
+run "Enabling PHP-FPM service" systemctl enable php-fpm
 
-run "Restarting PHP-FPM service" \
-    systemctl restart php-fpm
+run "Restarting PHP-FPM service" systemctl restart php-fpm
 
 ###############################################################################
 # Completion
 ###############################################################################
 
+unset GIT_SSH_COMMAND
 log "Vision application deployment completed successfully."
