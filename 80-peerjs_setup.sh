@@ -198,14 +198,11 @@ clone_or_update_repo() {
 
     if [[ -d "${dest}/.git" ]]; then
 
-        run "Updating repository metadata" \
-            git -C "${dest}" fetch --all --prune --quiet
+        run "Updating repository metadata" git -C "${dest}" fetch --all --prune --quiet
 
-        run "Checking out ${branch}" \
-            git -C "${dest}" checkout -q "${branch}"
+        run "Checking out ${branch}" git -C "${dest}" checkout -q "${branch}"
 
-        run "Synchronizing repository" \
-            git -C "${dest}" reset --hard "origin/${branch}"
+        run "Synchronizing repository" git -C "${dest}" reset --hard "origin/${branch}"
 
     else
 
