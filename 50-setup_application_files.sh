@@ -179,7 +179,7 @@ chown root:root "${APP_DIR}"
 log "Configuring Bitbucket SSH key permissions"
 
 chmod 0400 "${BITBUCKET_KEY}"
-chowm root:root "${BITBUCKET_KEY}"
+chown root:root "${BITBUCKET_KEY}"
 
 export GIT_SSH_COMMAND="ssh -i ${BITBUCKET_KEY} -o StrictHostKeyChecking=accept-new"
 
