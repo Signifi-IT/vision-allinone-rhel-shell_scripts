@@ -159,7 +159,7 @@ run "Rebuilding DNF package metadata cache" dnf makecache -y
 # Install packages
 ###############################################################################
 
-run "Installing HAProxy and rsyslog" dnf install -y haproxy rsyslog
+run "Installing HAProxy and rsyslog" dnf install -y haproxy-2.8.14-1.el9_7.1.x86_64 rsyslog
 
 ###############################################################################
 # Backup and remove default config
@@ -202,7 +202,7 @@ chown root:root "${HAPROXY_MAP_FILE}"
 
 run "Removing default rsyslog HAProxy configuration file" rm -f /etc/rsyslog.d/49-haproxy.conf
 
-run "Creating rsyslog HAProxy configurtion for HAProxy logging" \
+log "Creating rsyslog HAProxy configurtion for HAProxy logging"
 cat > /etc/rsyslog.d/49-haproxy.conf <<'EOF'
 module(load="imudp")
 input(type="imudp" port="514")

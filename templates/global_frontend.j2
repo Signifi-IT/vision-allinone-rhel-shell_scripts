@@ -12,7 +12,7 @@ frontend http_frontend
     timeout client 1m
 
     # Redirect HTTP to HTTPS
-    http-request redirect scheme https code 301 if !{ ssl_fc }
+    http-request redirect scheme https code 308 if !{ ssl_fc }
 
 frontend https_frontend
     mode http
