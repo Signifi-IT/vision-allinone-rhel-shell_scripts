@@ -209,6 +209,8 @@ fi
 # Create PostgreSQL application database
 ###############################################################################
 
+export PGPASSWORD="${POSTGRES_ADMIN_PASSWORD}"
+
 DB_EXISTS=$(
     "${PSQL}" \
         -h 127.0.0.1 \
