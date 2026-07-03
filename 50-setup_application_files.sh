@@ -135,8 +135,6 @@ done
 
 REQUIRED_FILES=(
     "${BITBUCKET_KEY}"
-    "${PHP_INI_SOURCE}"
-    "${PHP_WWW_CONF_SOURCE}"
 )
 
 for file in "${REQUIRED_FILES[@]}"; do

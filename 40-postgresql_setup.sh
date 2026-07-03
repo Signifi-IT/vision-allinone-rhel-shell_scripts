@@ -291,7 +291,7 @@ DB_EXISTS=$(
 
 if [[ "${DB_EXISTS}" != "1" ]]; then
 
-    run "Creating application database" \
+    run "Creating application database ${APP_DB_NAME}" \
         "${PSQL}" \
             -h 127.0.0.1 \
             -p "${POSTGRES_PORT}" \
@@ -309,7 +309,7 @@ fi
 # Grant privileges on database
 ###############################################################################
 
-run "Granting database privileges" \
+run "Granting database privileges to ${APP_DB_USER}" \
     "${PSQL}" \
         -h 127.0.0.1 \
         -p "${POSTGRES_PORT}" \

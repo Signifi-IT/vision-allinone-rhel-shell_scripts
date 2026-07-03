@@ -262,6 +262,8 @@ rendered = template.render(
     allowed_server_status_ips="""${ALLOWED_IPS}""".splitlines()
 )
 
+rendered = rendered.rstrip("\n") + "\n"
+
 with open("${SITE_CONFIG}", "w") as f:
     f.write(rendered)
 EOF
@@ -313,7 +315,7 @@ fi
 run "Validating Apache configuration" apachectl configtest
 
 ###############################################################################
-# Enable and restart Apache
+# Restart Apache
 ###############################################################################
 
 run "Enabling HTTPD service" systemctl enable httpd

@@ -105,7 +105,6 @@ HAPROXY_MAP_DIR="/etc/haproxy/maps"
 HAPROXY_MAP_FILE="${HAPROXY_MAP_DIR}/hosts.map"
 
 HAPROXY_CERT_DIR="/etc/haproxy/certs"
-CERT_SOURCE="${CERT_PATH}"
 CERT_DEST="${HAPROXY_CERT_DIR}/${PORTAL_URL}.pem"
 
 GLOBAL_FRONTEND_TEMPLATE="${SCRIPT_DIR}/templates/global_frontend.j2"
@@ -334,7 +333,7 @@ run "Removing python3-jinja2" dnf remove -y python3-jinja2
 # Install TLS certificate
 ###############################################################################
 
-run "Installing TLS certificate" cp -f "${CERT_SOURCE}" "${CERT_DEST}"
+run "Installing TLS certificate" cp -f "${CERT_PATH}" "${CERT_DEST}"
 
 chmod 0600 "${CERT_DEST}"
 chown root:root "${CERT_DEST}"

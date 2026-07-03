@@ -141,7 +141,6 @@ done
 REQUIRED_FILES=(
     "${BITBUCKET_KEY}"
     "${CERT_SOURCE}"
-    "${PEERJS_TEMPLATE}"
 )
 
 for file in "${REQUIRED_FILES[@]}"; do
