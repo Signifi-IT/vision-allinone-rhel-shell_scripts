@@ -158,7 +158,7 @@ run "Rebuilding DNF package metadata cache" dnf makecache -y
 # Install packages
 ###############################################################################
 
-run "Installing HAProxy and rsyslog" dnf install -y haproxy-2.8.14-1.el9_7.1.x86_64 rsyslog
+run "Installing HAProxy and rsyslog" dnf install -y haproxy rsyslog
 
 ###############################################################################
 # Backup and remove default config
