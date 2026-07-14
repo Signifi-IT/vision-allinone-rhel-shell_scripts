@@ -6,14 +6,14 @@
 #   PostgreSQL 14, and supporting system services:
 #     - Requires root privileges
 #     - Logs all actions to /var/log/vision_deployment.log
-#     - Imports and installs EPEL repository
-#     - Enables CodeReady Builder repository
-#     - Selectively enables required DNF repositories
+#     - Imports the EPEL GPG key and installs EPEL repository
+#     - Enables the CodeReady Builder repository
+#     - Disables unnecessary PostgreSQL and EPEL repositories
 #     - Refreshes DNF metadata and performs system upgrade
 #     - Resets and enables PHP 8.2 module stream and installs PHP profile
 #     - Installs PostgreSQL 14 and related application packages
 #     - Initializes PostgreSQL database
-#     - Changes PostgreSQL port from 5432 to 5431
+#     - Changes PostgreSQL listener port from 5432 to 5431
 #     - Unmasks httpd service
 #     - Enables and starts PostgreSQL and system services (httpd, php-fpm, auditd, restorecond)
 #     - Configures SELinux booleans
@@ -103,180 +103,173 @@ run "Installing EPEL repository" dnf install -y "${EPEL_RPM}"
 run "Enabling CodeReady Builder repository" \
     subscription-manager repos --enable codeready-builder-for-rhel-9-x86_64-rpms
 
-# ###############################################################################
-# # Disable all repositories
-# ###############################################################################
+###############################################################################
+# Enable only required repositories
+###############################################################################
 
-# run "Disabling all DNF repositories" dnf config-manager --set-disabled '*'
+run "Enabling required DNF repositories" \
+    dnf config-manager --set-disabled \
+        epel-cisco-openh264 \
+        pgdg15 \
+        pgdg16 \
+        pgdg17 \
+        pgdg18
 
-# ###############################################################################
-# # Enable only required repositories
-# ###############################################################################
+###############################################################################
+# Refresh DNF Metadata
+###############################################################################
 
-# run "Enabling required DNF repositories" \
-#     dnf config-manager --set-enabled \
-#         codeready-builder-for-rhel-9-x86_64-rpms \
-#         epel \
-#         pgdg-common \
-#         pgdg14 \
-#         rhel-9-for-x86_64-appstream-rpms \
-#         rhel-9-for-x86_64-baseos-rpms
+run "Cleaning DNF cache" dnf clean all
+run "Rebuilding DNF package metadata cache" dnf makecache -y
 
-# ###############################################################################
-# # Refresh DNF Metadata
-# ###############################################################################
+###############################################################################
+# PHP module configuration
+###############################################################################
 
-# run "Cleaning DNF cache" dnf clean all
-# run "Rebuilding DNF package metadata cache" dnf makecache -y
+run "Resetting PHP module" dnf module reset php -y
+run "Enabling PHP 8.2 module stream" dnf module enable php:8.2 -y
 
-# ###############################################################################
-# # PHP module configuration
-# ###############################################################################
+###############################################################################
+# System upgrade
+###############################################################################
 
-# run "Resetting PHP module" dnf module reset php -y
-# run "Enabling PHP 8.2 module stream" dnf module enable php:8.2 -y
+run "Upgrading system packages" dnf upgrade -y --refresh
 
-# ###############################################################################
-# # System upgrade
-# ###############################################################################
+###############################################################################
+# PHP profile
+###############################################################################
 
-# run "Upgrading system packages" dnf upgrade -y --refresh
+run "Installing PHP 8.2 common profile" dnf install -y "@php:8.2/common"
 
-# ###############################################################################
-# # PHP profile
-# ###############################################################################
+###############################################################################
+# Refresh DNF Metadata
+###############################################################################
 
-# run "Installing PHP 8.2 common profile" dnf install -y "@php:8.2/common"
+run "Cleaning DNF cache" dnf clean all
+run "Rebuilding DNF package metadata cache" dnf makecache -y
 
-# ###############################################################################
-# # Refresh DNF Metadata
-# ###############################################################################
+###############################################################################
+# Required packages
+###############################################################################
 
-# run "Cleaning DNF cache" dnf clean all
-# run "Rebuilding DNF package metadata cache" dnf makecache -y
+REQUIRED_PACKAGES=(
+    postgresql14
+    postgresql14-server
+    postgresql14-contrib
+    python3-psycopg2
+    httpd
+    httpd-core
+    httpd-tools
+    git
+    mlocate
+    php
+    php-bcmath
+    php-cli
+    php-common
+    php-fpm
+    php-pgsql
+    php-opcache
+    php-mbstring
+    php-xml
+    php-intl
+    php-process
+    php-gd
+    setroubleshoot
+    setroubleshoot-server
+    setroubleshoot-plugins
+)
 
-# ###############################################################################
-# # Required packages
-# ###############################################################################
+run "Installing application packages" dnf install -y "${REQUIRED_PACKAGES[@]}"
 
-# REQUIRED_PACKAGES=(
-#     postgresql14
-#     postgresql14-server
-#     postgresql14-contrib
-#     python3-psycopg2
-#     httpd
-#     httpd-core
-#     httpd-tools
-#     git
-#     mlocate
-#     php
-#     php-bcmath
-#     php-cli
-#     php-common
-#     php-fpm
-#     php-pgsql
-#     php-opcache
-#     php-mbstring
-#     php-xml
-#     php-intl
-#     php-process
-#     php-gd
-#     setroubleshoot
-#     setroubleshoot-server
-#     setroubleshoot-plugins
-# )
+###############################################################################
+# PostgreSQL initialization
+###############################################################################
 
-# run "Installing application packages" dnf install -y "${REQUIRED_PACKAGES[@]}"
+if [[ ! -d "${POSTGRES_DATA_DIR}" ]] || [[ ! -f "${POSTGRES_VERSION_FILE}" ]]; then
+    run "Initializing PostgreSQL database" /usr/pgsql-14/bin/postgresql-14-setup initdb
+else
+    log "PostgreSQL already initialized"
+fi
 
-# ###############################################################################
-# # PostgreSQL initialization
-# ###############################################################################
+###############################################################################
+# PostgreSQL port configuration
+###############################################################################
 
-# if [[ ! -d "${POSTGRES_DATA_DIR}" ]] || [[ ! -f "${POSTGRES_VERSION_FILE}" ]]; then
-#     run "Initializing PostgreSQL database" /usr/pgsql-14/bin/postgresql-14-setup initdb
-# else
-#     log "PostgreSQL already initialized"
-# fi
+POSTGRES_RESTART_NEEDED=0
 
-# ###############################################################################
-# # PostgreSQL port configuration
-# ###############################################################################
+if grep -qE '^[[:space:]]*#?[[:space:]]*port[[:space:]]*=[[:space:]]*5432([[:space:]]*#.*)?$' "${POSTGRES_CONF}"; then
+    run "Changing PostgreSQL port from 5432 to ${POSTGRES_PORT}" \
+        sed -i \
+        's/^[[:space:]]*#\?[[:space:]]*port[[:space:]]*=[[:space:]]*5432/port = '"${POSTGRES_PORT}"'/g' "${POSTGRES_CONF}"
 
-# POSTGRES_RESTART_NEEDED=0
+    POSTGRES_RESTART_NEEDED=1
+else
+    if grep -qE '^[[:space:]]*port[[:space:]]*=[[:space:]]*5431' "${POSTGRES_CONF}"; then
+        log "PostgreSQL already configured for port ${POSTGRES_PORT}"
+    else
+        warn "Unable to determine PostgreSQL port configuration"
+    fi
+fi
 
-# if grep -qE '^[[:space:]]*#?[[:space:]]*port[[:space:]]*=[[:space:]]*5432([[:space:]]*#.*)?$' "${POSTGRES_CONF}"; then
-#     run "Changing PostgreSQL port from 5432 to ${POSTGRES_PORT}" \
-#         sed -i \
-#         's/^[[:space:]]*#\?[[:space:]]*port[[:space:]]*=[[:space:]]*5432/port = '"${POSTGRES_PORT}"'/g' "${POSTGRES_CONF}"
+if [[ "${POSTGRES_RESTART_NEEDED}" -eq 1 ]]; then
+    run "Restarting PostgreSQL to apply port change" systemctl restart postgresql-14
+fi
 
-#     POSTGRES_RESTART_NEEDED=1
-# else
-#     if grep -qE '^[[:space:]]*port[[:space:]]*=[[:space:]]*5431' "${POSTGRES_CONF}"; then
-#         log "PostgreSQL already configured for port ${POSTGRES_PORT}"
-#     else
-#         warn "Unable to determine PostgreSQL port configuration"
-#     fi
-# fi
+###############################################################################
+# Services
+###############################################################################
 
-# if [[ "${POSTGRES_RESTART_NEEDED}" -eq 1 ]]; then
-#     run "Restarting PostgreSQL to apply port change" systemctl restart postgresql-14
-# fi
+run "Unmasking httpd service" systemctl unmask httpd
 
-# ###############################################################################
-# # Services
-# ###############################################################################
+run "Reloading systemd daemon" systemctl daemon-reload
 
-# run "Unmasking httpd service" systemctl unmask httpd
+run "Starting and Enabling PostgreSQL service" systemctl enable --now postgresql-14
 
-# run "Reloading systemd daemon" systemctl daemon-reload
+###############################################################################
+# Verify PostgreSQL readiness
+###############################################################################
 
-# run "Starting and Enabling PostgreSQL service" systemctl enable --now postgresql-14
+log "Waiting for PostgreSQL to become ready on port ${POSTGRES_PORT}..."
 
-# ###############################################################################
-# # Verify PostgreSQL readiness
-# ###############################################################################
+for i in {1..30}; do
+    if "${PG_ISREADY}" -p "${POSTGRES_PORT}" >/dev/null 2>&1; then
+        log "PostgreSQL is accepting connections on port ${POSTGRES_PORT}"
+        break
+    fi
 
-# log "Waiting for PostgreSQL to become ready on port ${POSTGRES_PORT}..."
+    sleep 1
 
-# for i in {1..30}; do
-#     if "${PG_ISREADY}" -p "${POSTGRES_PORT}" >/dev/null 2>&1; then
-#         log "PostgreSQL is accepting connections on port ${POSTGRES_PORT}"
-#         break
-#     fi
+    if [[ "${i}" -eq 30 ]]; then
+        error "PostgreSQL failed to become ready on port ${POSTGRES_PORT}"
+        exit 1
+    fi
+done
 
-#     sleep 1
+###############################################################################
+# Remaining services
+###############################################################################
 
-#     if [[ "${i}" -eq 30 ]]; then
-#         error "PostgreSQL failed to become ready on port ${POSTGRES_PORT}"
-#         exit 1
-#     fi
-# done
+for svc in httpd php-fpm auditd restorecond; do
+    run "Enabling and starting ${svc}" systemctl enable --now "${svc}"
+done
 
-# ###############################################################################
-# # Remaining services
-# ###############################################################################
+###############################################################################
+# SELinux booleans
+###############################################################################
 
-# for svc in httpd php-fpm auditd restorecond; do
-#     run "Enabling and starting ${svc}" systemctl enable --now "${svc}"
-# done
+SEBOOLS=(
+    httpd_can_network_connect_db
+    haproxy_connect_any
+)
 
-# ###############################################################################
-# # SELinux booleans
-# ###############################################################################
+for bool in "${SEBOOLS[@]}"; do
+    run "Enabling SELinux boolean (runtime) ${bool}" setsebool "${bool}" on
 
-# SEBOOLS=(
-#     httpd_can_network_connect_db
-#     haproxy_connect_any
-# )
+    run "Enabling SELinux boolean (persistent) ${bool}" setsebool -P "${bool}" on
+done
 
-# for bool in "${SEBOOLS[@]}"; do
-#     run "Enabling SELinux boolean (runtime) ${bool}" setsebool "${bool}" on
+###############################################################################
+# Completion
+###############################################################################
 
-#     run "Enabling SELinux boolean (persistent) ${bool}" setsebool -P "${bool}" on
-# done
-
-# ###############################################################################
-# # Completion
-# ###############################################################################
-
-# log "Application stack configuration completed successfully."
+log "Application stack configuration completed successfully."
