@@ -1,6 +1,3 @@
-# System timezone to be configured on the server
-LOCAL_TIMEZONE=""
-
 # Password of the PostgreSQL Database Administrator User (postgres)
 POSTGRES_ADMIN_PASSWORD=""
 

@@ -5,7 +5,6 @@
 #   Performs system maintenance and configuration on RHEL-based systems:
 #     - Requires root privileges
 #     - Logs all actions to /var/log/vision_deployment.log
-#     - Loads and validates configuration from answers.txt
 #     - Validates the configured system timezone
 #     - Cleans and rebuilds the DNF package metadata cache
 #     - Installs required system utilities and dependencies
@@ -13,7 +12,6 @@
 #     - Performs a full system upgrade
 #     - Removes unused packages
 #     - Configures Nano as the default system editor
-#     - Sets the system timezone
 #     - Schedules a system reboot in 1 minute to apply changes
 ###############################################################################
 
@@ -71,42 +69,6 @@ run() {
         return "$rc"
     fi
 }
-
-###############################################################################
-# Load configuration
-###############################################################################
-
-# SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
-# CONFIG_FILE="${SCRIPT_DIR}/answers.txt"
-
-# if [[ ! -f "$CONFIG_FILE" ]]; then
-#     error "Configuration file not found: $CONFIG_FILE"
-#     exit 1
-# fi
-
-# log "Loading configuration from $CONFIG_FILE..."
-
-# if ! source "$CONFIG_FILE"; then
-#     error "Failed to load config file"
-#     exit 1
-# fi
-
-# if [[ -z "${LOCAL_TIMEZONE:-}" ]]; then
-#     error "LOCAL_TIMEZONE is not defined in $CONFIG_FILE"
-#     exit 1
-# fi
-
-# TIMEZONE="$LOCAL_TIMEZONE"
-# log "Configured timezone: $TIMEZONE"
-
-###############################################################################
-# Validate timezone
-###############################################################################
-
-# if [[ ! -f "/usr/share/zoneinfo/$TIMEZONE" ]]; then
-#     error "Invalid timezone: $TIMEZONE"
-#     exit 1
-# fi
 
 ###############################################################################
 # Packages
@@ -167,18 +129,6 @@ EOF
 
 chmod 0644 /etc/profile.d/editor.sh
 chown root:root /etc/profile.d/editor.sh
-
-###############################################################################
-# Timezone configuration
-###############################################################################
-
-# CURRENT_TZ="$(timedatectl show --property=Timezone --value)"
-
-# if [[ "$CURRENT_TZ" != "$TIMEZONE" ]]; then
-#     run "Setting timezone to $TIMEZONE" timedatectl set-timezone "$TIMEZONE"
-# else
-#     log "Timezone already set to $TIMEZONE"
-# fi
 
 ###############################################################################
 # Reboot
