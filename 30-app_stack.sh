@@ -14,6 +14,7 @@
 #     - Installs PostgreSQL 14 and related application packages
 #     - Initializes PostgreSQL database
 #     - Changes PostgreSQL listener port from 5432 to 5431
+#     - Configures SELinux PostgreSQL port mapping for PostgreSQL on TCP 5431
 #     - Unmasks httpd service
 #     - Enables and starts PostgreSQL and system services (httpd, php-fpm, auditd, restorecond)
 #     - Configures SELinux booleans
@@ -104,10 +105,10 @@ run "Enabling CodeReady Builder repository" \
     subscription-manager repos --enable codeready-builder-for-rhel-9-x86_64-rpms
 
 ###############################################################################
-# Enable only required repositories
+# Disable unnecessary repositories
 ###############################################################################
 
-run "Enabling required DNF repositories" \
+run "Disabling unnecessary DNF repositories" \
     dnf config-manager --set-disabled \
         epel-cisco-openh264 \
         pgdg15 \
@@ -209,6 +210,27 @@ else
     else
         warn "Unable to determine PostgreSQL port configuration"
     fi
+fi
+
+###############################################################################
+# SELinux PostgreSQL port
+###############################################################################
+
+if semanage port -l | grep -qE '^postgresql_port_t.*\b5431\b'; then
+
+    log "SELinux PostgreSQL port ${POSTGRES_PORT} already configured"
+
+elif semanage port -l | grep -qE '^postgresql_port_t.*\b5432\b'; then
+
+    run "Adding SELinux PostgreSQL port ${POSTGRES_PORT}" \
+        semanage port -a -t postgresql_port_t -p tcp "${POSTGRES_PORT}"
+
+else
+
+    warn "Unable to confirm existing PostgreSQL SELinux port mapping"
+    run "Adding SELinux PostgreSQL port ${POSTGRES_PORT}" \
+        semanage port -a -t postgresql_port_t -p tcp "${POSTGRES_PORT}"
+
 fi
 
 if [[ "${POSTGRES_RESTART_NEEDED}" -eq 1 ]]; then
