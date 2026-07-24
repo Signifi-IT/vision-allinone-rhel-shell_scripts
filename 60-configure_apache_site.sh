@@ -150,16 +150,6 @@ backup_file_if_needed() {
 }
 
 ###############################################################################
-# Application permissions
-###############################################################################
-
-run "Setting application permissions" \
-    find "${APP_DIR}" -type d -exec chmod 0755 {} + && \
-    find "${APP_DIR}" -type f -exec chmod 0644 {} +
-
-run "Setting application ownership" chown -R root:root "${APP_DIR}"
-
-###############################################################################
 # Remove default Apache configuration
 ###############################################################################
 
@@ -307,6 +297,16 @@ else
     log "SELinux HTTP port 7080 already configured"
 
 fi
+
+###############################################################################
+# Application permissions
+###############################################################################
+
+run "Setting application permissions" \
+    find "${APP_DIR}" -type d -exec chmod 0755 {} + && \
+    find "${APP_DIR}" -type f -exec chmod 0644 {} +
+
+run "Setting application ownership" chown -R root:apache "${APP_DIR}"
 
 ###############################################################################
 # Validate Apache
