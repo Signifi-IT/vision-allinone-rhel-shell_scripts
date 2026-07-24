@@ -6,7 +6,6 @@
 #     - Requires root privileges
 #     - Logs all operations to /var/log/vision_deployment.log
 #     - Loads configuration from answers.txt and validates required variables
-#     - Applies recursive application ownership and permission settings
 #     - Removes default Apache configuration files and unused modules
 #     - Configures mod_status and Apache security hardening directives
 #     - Configures Apache listener to listen on 127.0.0.1:7080 by updating Listen directives
@@ -17,6 +16,7 @@
 #     - Creates and configures application-specific Apache log directory
 #     - Comments default DocumentRoot in main Apache configuration
 #     - Configures SELinux HTTP port mapping for 7080
+#     - Applies recursive application ownership and permission settings
 #     - Validates Apache configuration syntax before restart
 #     - Enables and restarts Apache HTTPD service
 ###############################################################################
