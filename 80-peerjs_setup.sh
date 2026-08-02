@@ -135,7 +135,7 @@ REQUIRED_VARS=(
 
 for var in "${REQUIRED_VARS[@]}"; do
     if [[ -z "${!var:-}" ]]; then
-        error "Required variable '${var}' is not defined"
+        error "Required variable '${var}' is not defined or is empty"
         exit 1
     fi
 done
@@ -149,9 +149,9 @@ REQUIRED_FILES=(
     "${CERT_PATH}"
 )
 
-for var in "${REQUIRED_VARS[@]}"; do
-    if [[ -z "${!var:-}" ]]; then
-        error "Required variable '${var}' is not defined or is empty"
+for file in "${REQUIRED_FILES[@]}"; do
+    if [[ ! -f "${file}" ]]; then
+        error "Required file not found: ${file}"
         exit 1
     fi
 done
