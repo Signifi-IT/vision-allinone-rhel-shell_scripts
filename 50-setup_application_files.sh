@@ -5,16 +5,16 @@
 #   Deploys the Vision application from Git repositories on RHEL-based systems:
 #     - Requires root privileges
 #     - Logs all operations to /var/log/vision_deployment.log
-#     - Loads and validates configuration from answers.txt
-#     - Validates required variables, and files
+#     - Loads configuration from answers.txt
+#     - Validates required variables
+#     - Validates required files
 #     - Creates application directory structure under /var/www
 #     - Configures Bitbucket SSH key for secure Git access
-#     - Clones or synchronizes application, media, API, and mobile repositories
-#       using branch checkout and hard reset to origin state
+#     - Clones application, media, API, and mobile repositories from their branches
 #     - Deploys media, API, and mobile assets into application directory structure
 #     - Creates required application session directories
-#     - Removes temporary repository working directories after deployment
-#     - Backs up and deploys PHP configuration files (php.ini, www.conf)
+#     - Removes temporary repository working directories
+#     - Backs up and deploy PHP configuration files (php.ini, www.conf)
 #     - Validates PHP-FPM configuration
 #     - Enables and restarts PHP-FPM service
 ###############################################################################
@@ -124,7 +124,7 @@ REQUIRED_VARS=(
 
 for var in "${REQUIRED_VARS[@]}"; do
     if [[ -z "${!var:-}" ]]; then
-        error "Required variable '${var}' is not defined"
+        error "Required variable '${var}' is not defined or is empty"
         exit 1
     fi
 done
@@ -168,7 +168,7 @@ log "Creating application portal directory"
 
 mkdir -p "${APP_DIR}"
 chmod 0755 "${APP_DIR}"
-chown root:root "${APP_DIR}"
+chown -R root:apache "${APP_DIR}"
 
 ###############################################################################
 # Git SSH configuration
@@ -247,7 +247,7 @@ for component in media api mobile; do
     cp -a "${SOURCE}/." "${DEST}/"
 
     chmod 0755 "${DEST}"
-    chown root:root "${DEST}"
+    chown -R root:apache "${DEST}"
 
 done
 
@@ -261,7 +261,7 @@ log "Creating application session directory"
 
 mkdir -p "${SESSION_DIR}"
 chmod 0755 "${SESSION_DIR}"
-chown root:root "${SESSION_DIR}"
+chown -R root:apache "${SESSION_DIR}"
 
 ###############################################################################
 # Remove temporary repository directories
@@ -279,22 +279,17 @@ for component in media api mobile; do
 done
 
 ###############################################################################
-# Deploy PHP configuration
+# Deploy and Validate PHP configuration
 ###############################################################################
 
 backup_file_if_needed "${PHP_INI_DEST}"
 backup_file_if_needed "${PHP_WWW_CONF_DEST}"
 
 run "Deploying php.ini" cp -f "${PHP_INI_SOURCE}" "${PHP_INI_DEST}"
-
 run "Deploying www.conf" cp -f "${PHP_WWW_CONF_SOURCE}" "${PHP_WWW_CONF_DEST}"
 
 chmod 0644 "${PHP_INI_DEST}" "${PHP_WWW_CONF_DEST}"
 chown root:root "${PHP_INI_DEST}" "${PHP_WWW_CONF_DEST}"
-
-###############################################################################
-# Validate PHP configuration
-###############################################################################
 
 run "Validating PHP-FPM configuration" php-fpm -t -c %s
 
@@ -302,9 +297,8 @@ run "Validating PHP-FPM configuration" php-fpm -t -c %s
 # Restart PHP-FPM
 ###############################################################################
 
-run "Enabling PHP-FPM service" systemctl enable php-fpm
-
 run "Restarting PHP-FPM service" systemctl restart php-fpm
+run "Enabling PHP-FPM service" systemctl enable php-fpm
 
 ###############################################################################
 # Completion

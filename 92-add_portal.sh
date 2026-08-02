@@ -2,8 +2,7 @@
 
 ###############################################################################
 # Description:
-#   Adds a new Vision application portal to an already configured RHEL-based
-#   Vision application server:
+#   Adds a new Vision application portal to an already configured application server on RHEL-based systems:
 #     - Requires root privileges
 #     - Logs all operations to /var/log/vision_deployment.log
 #     - Loads configuration from answers-add_portal.txt
@@ -136,13 +135,13 @@ CERT_DEST="${HAPROXY_CERT_DIR}/${PORTAL_URL}.pem"
 ###############################################################################
 
 REQUIRED_VARS=(
-    APP_DB_NAME
+    POSTGRES_ADMIN_PASSWORD
     APP_DB_USER
     APP_DB_PASSWORD
-    POSTGRES_ADMIN_PASSWORD
+    APP_DB_NAME
     BACKUP_FILE_PATH
-    PORTAL_URL
     BITBUCKET_KEY
+    PORTAL_URL
     APP_URL
     APP_BRANCH
     APP_MEDIA_URL

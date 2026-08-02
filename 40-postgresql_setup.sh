@@ -5,18 +5,18 @@
 #   Configures PostgreSQL application database and access on RHEL-based systems:
 #     - Requires root privileges
 #     - Logs all operations to /var/log/vision_deployment.log
-#     - Loads configuration from answers.txt and validates required variables
-#     - Waits for PostgreSQL service readiness
-#     - Sets PostgreSQL administrator password
-#     - Backs up pg_hba.conf before modification
-#     - Enforces SCRAM-SHA-256 authentication rules for local and network access
-#       by removing duplicates and appending validated entries
+#     - Loads configuration from answers.txt
+#     - Validates required variables
+#     - Validates required files
+#     - Sets PostgreSQL admin user (postgres) password
+#     - Backs up pg_hba.conf
+#     - Enforces SCRAM-SHA-256 authentication rules for local and network access and appending validated entries
 #     - Restarts PostgreSQL after authentication changes
-#     - Creates application database user credentials
+#     - Creates application database user with password
 #     - Creates application database
 #     - Grants required database privileges to application user
 #     - Restores application database from backup
-#     - Executes migration table query and logs results for verification
+#     - Query migration table and logs results for verification
 ###############################################################################
 
 set -Eeuo pipefail
@@ -121,21 +121,25 @@ REQUIRED_VARS=(
 
 for var in "${REQUIRED_VARS[@]}"; do
     if [[ -z "${!var:-}" ]]; then
-        error "Required variable '${var}' is not defined"
+        error "Required variable '${var}' is not defined or is empty"
         exit 1
     fi
 done
 
 ###############################################################################
-# Validate backup file exists
+# Validate required files
 ###############################################################################
 
-if [[ ! -f "${BACKUP_FILE}" ]]; then
-    error "Backup file does not exist: ${BACKUP_FILE}"
-    exit 1
-fi
+REQUIRED_FILES=(
+    "${BACKUP_FILE}"
+)
 
-log "Backup file verified: ${BACKUP_FILE}"
+for file in "${REQUIRED_FILES[@]}"; do
+    if [[ ! -f "${file}" ]]; then
+        error "Required file not found: ${file}"
+        exit 1
+    fi
+done
 
 ###############################################################################
 # Backup helper

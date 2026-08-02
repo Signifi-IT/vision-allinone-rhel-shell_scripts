@@ -5,18 +5,25 @@
 #   Configures HAProxy and rsyslog for the Vision application on RHEL-based systems:
 #     - Requires root privileges
 #     - Logs all operations to /var/log/vision_deployment.log
-#     - Refreshes DNF metadata and installs HAProxy and rsyslog packages
-#     - Configures custom rsyslog for HAProxy logging
-#     - Prepares HAProxy directory structure
-#     - Removes default HAProxy configuration file and deploys new configs
-#     - Installs Jinja2 to render templates
-#     - Generates HAProxy configuration files using Jinja2 templates
-#     - Removes Jinja2 after rendering configurations
+#     - Loads configuration from answers.txt
+#     - Validates required variables
+#     - Validates required files
+#     - Validates required Jinja2 templates
+#     - Cleans and rebuilds the DNF package metadata cache
+#     - Installs HAProxy and rsyslog packages
+#     - Backs up and removes default HAProxy configuration
+#     - Creates HAProxy directory structure
+#     - Creates HAProxy hosts.map file
+#     - Configures custom rsyslog configuration for HAProxy logging
+#     - Deploys new HAProxy configuration files
+#     - Installs Jinja2 to render HAProxy configuration
+#     - Generates HAProxy configuration files from Jinja2 templates
+#     - Removes Jinja2 after rendering HAProxy configuration
 #     - Installs TLS certificate
-#     - Maintains HAProxy host mapping file (hosts.map) with backend routing entries
-#     - Adds portal entry to /etc/hosts
+#     - Updates HAProxy host mapping file (hosts.map) with backend routing entries
 #     - Validates HAProxy configuration
-#     - Restarts, enables, and activates HAProxy service
+#     - Restarts and enables HAProxy service
+#     - Adds portal entry to /etc/hosts
 ###############################################################################
 
 set -Eeuo pipefail
@@ -108,9 +115,9 @@ HAPROXY_CERT_DIR="/etc/haproxy/certs"
 CERT_DEST="${HAPROXY_CERT_DIR}/${PORTAL_URL}.pem"
 
 GLOBAL_FRONTEND_TEMPLATE="${SCRIPT_DIR}/templates/global_frontend.j2"
+GLOBAL_BACKEND_SRC="${SCRIPT_DIR}/templates/global_backend.j2"
 PORTAL_BACKEND_TEMPLATE="${SCRIPT_DIR}/templates/portal_backend.j2"
 
-GLOBAL_BACKEND_SRC="${SCRIPT_DIR}/files/haproxy_config/global_backend.cfg"
 UNKNOWN_BACKEND_SRC="${SCRIPT_DIR}/files/haproxy_config/unknown_host_backend.cfg"
 HAPROXY_MAIN_SRC="${SCRIPT_DIR}/files/haproxy_config/haproxy.cfg"
 
@@ -126,7 +133,7 @@ REQUIRED_VARS=(
 
 for var in "${REQUIRED_VARS[@]}"; do
     if [[ -z "${!var:-}" ]]; then
-        error "Required variable '${var}' is not defined"
+        error "Required variable '${var}' is not defined or is empty"
         exit 1
     fi
 done
@@ -257,7 +264,7 @@ log "Rendering Global frontend configuration"
 python3 <<EOF
 from jinja2 import Template
 
-with open("${SCRIPT_DIR}/templates/global_frontend.j2") as f:
+with open("${GLOBAL_FRONTEND_TEMPLATE}") as f:
     template = Template(f.read())
 
 allowed_ips = "${HAPROXY_ALLOWED_STATS_IPS[*]}".split()
@@ -284,7 +291,7 @@ log "Rendering Global backend onfiguration"
 python3 <<EOF
 from jinja2 import Template
 
-with open("${SCRIPT_DIR}/templates/global_backend.j2") as f:
+with open("${GLOBAL_BACKEND_SRC}") as f:
     template = Template(f.read())
 
 rendered = template.render(
@@ -360,8 +367,7 @@ run "Validating HAProxy configuration" haproxy -c -f "${HAPROXY_CFG}" -f "${HAPR
 ###############################################################################
 
 run "Stopping HAProxy" systemctl stop haproxy
-run "Starting HAProxy" systemctl start haproxy
-run "Enabling HAProxy" systemctl enable haproxy
+run "Enabling HAProxy" systemctl enable --now haproxy
 
 ###############################################################################
 # Update /etc/hosts entry

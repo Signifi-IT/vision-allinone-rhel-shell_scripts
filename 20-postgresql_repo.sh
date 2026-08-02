@@ -9,7 +9,7 @@
 #     - Disables the built-in PostgreSQL module
 #     - Imports the PostgreSQL repository GPG signing key
 #     - Installs the PostgreSQL repository RPM
-#     - Refreshes DNF metadata after repository installation
+#     - Cleans and rebuilds the DNF package metadata cache after repository installation
 #     - Ensures the built-in PostgreSQL module remains disabled
 ###############################################################################
 
@@ -100,6 +100,10 @@ run "Importing PostgreSQL repository GPG key" rpm --import "${PGDG_GPG_KEY_URL}"
 ###############################################################################
 
 run "Installing PostgreSQL repository RPM" dnf install -y "${PGDG_REPO_RPM}"
+
+###############################################################################
+# Refresh DNF Metadata
+###############################################################################
 
 run "Cleaning DNF cache" dnf clean all
 run "Rebuilding DNF package metadata cache" dnf makecache -y

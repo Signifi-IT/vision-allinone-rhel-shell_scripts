@@ -2,22 +2,24 @@
 
 ###############################################################################
 # Description:
-#   Configures a full application stack on RHEL 9, including EPEL, PHP 8.2,
-#   PostgreSQL 14, and supporting system services:
+#   Configures a full application stack PHP 8.2, PostgreSQL 14, HTTPD and supporting system services on RHEL-based systems:
 #     - Requires root privileges
 #     - Logs all actions to /var/log/vision_deployment.log
 #     - Imports the EPEL GPG key and installs EPEL repository
 #     - Enables the CodeReady Builder repository
 #     - Disables unnecessary PostgreSQL and EPEL repositories
-#     - Refreshes DNF metadata and performs system upgrade
+#     - Cleans and rebuilds the DNF package metadata cache
 #     - Resets and enables PHP 8.2 module stream and installs PHP profile
-#     - Installs PostgreSQL 14 and related application packages
+#     - Performs a full system package upgrade
+#     - Installs the PHP 8.2 common profile package group
+#     - Cleans and rebuilds the DNF package metadata cache
+#     - Installs HTTPD, PHP, PostgreSQL 14 packages, and related application dependencies
 #     - Initializes PostgreSQL database
 #     - Changes PostgreSQL listener port from 5432 to 5431
 #     - Configures SELinux PostgreSQL port mapping for PostgreSQL on TCP 5431
-#     - Unmasks httpd service
-#     - Enables and starts PostgreSQL and system services (httpd, php-fpm, auditd, restorecond)
-#     - Configures SELinux booleans
+#     - Unmasks HTTPD, reloads systemd, and enables PostgreSQL 14 service
+#     - Enables and starts application services: HTTPD, PHP-FPM, auditd, and restorecond
+#     - Enables required SELinux booleans for Apache database connectivity and HAProxy network access
 ###############################################################################
 
 set -Eeuo pipefail
@@ -154,15 +156,9 @@ run "Rebuilding DNF package metadata cache" dnf makecache -y
 ###############################################################################
 
 REQUIRED_PACKAGES=(
-    postgresql14
-    postgresql14-server
-    postgresql14-contrib
-    python3-psycopg2
     httpd
     httpd-core
     httpd-tools
-    git
-    mlocate
     php
     php-bcmath
     php-cli
@@ -175,9 +171,10 @@ REQUIRED_PACKAGES=(
     php-intl
     php-process
     php-gd
-    setroubleshoot
-    setroubleshoot-server
-    setroubleshoot-plugins
+    postgresql14
+    postgresql14-server
+    postgresql14-contrib
+    python3-psycopg2
 )
 
 run "Installing application packages" dnf install -y "${REQUIRED_PACKAGES[@]}"
@@ -216,21 +213,11 @@ fi
 # SELinux PostgreSQL port
 ###############################################################################
 
-if semanage port -l | grep -qE '^postgresql_port_t.*\b5431\b'; then
-
+if semanage port -l | grep -qE "^postgresql_port_t.*\b${POSTGRES_PORT}\b"; then
     log "SELinux PostgreSQL port ${POSTGRES_PORT} already configured"
-
-elif semanage port -l | grep -qE '^postgresql_port_t.*\b5432\b'; then
-
-    run "Adding SELinux PostgreSQL port ${POSTGRES_PORT}" \
-        semanage port -a -t postgresql_port_t -p tcp "${POSTGRES_PORT}"
-
 else
-
-    warn "Unable to confirm existing PostgreSQL SELinux port mapping"
     run "Adding SELinux PostgreSQL port ${POSTGRES_PORT}" \
         semanage port -a -t postgresql_port_t -p tcp "${POSTGRES_PORT}"
-
 fi
 
 if [[ "${POSTGRES_RESTART_NEEDED}" -eq 1 ]]; then
@@ -238,14 +225,12 @@ if [[ "${POSTGRES_RESTART_NEEDED}" -eq 1 ]]; then
 fi
 
 ###############################################################################
-# Services
+# Unmasking httpd service and reloading systemd
 ###############################################################################
 
 run "Unmasking httpd service" systemctl unmask httpd
 
 run "Reloading systemd daemon" systemctl daemon-reload
-
-run "Starting and Enabling PostgreSQL service" systemctl enable --now postgresql-14
 
 ###############################################################################
 # Verify PostgreSQL readiness
@@ -271,7 +256,7 @@ done
 # Remaining services
 ###############################################################################
 
-for svc in httpd php-fpm auditd restorecond; do
+for svc in httpd php-fpm auditd restorecond postgresql-14; do
     run "Enabling and starting ${svc}" systemctl enable --now "${svc}"
 done
 

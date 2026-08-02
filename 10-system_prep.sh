@@ -5,13 +5,11 @@
 #   Performs system maintenance and configuration on RHEL-based systems:
 #     - Requires root privileges
 #     - Logs all actions to /var/log/vision_deployment.log
-#     - Validates the configured system timezone
 #     - Cleans and rebuilds the DNF package metadata cache
 #     - Installs required system utilities and dependencies
-#     - Removes Vim editor packages
 #     - Performs a full system upgrade
 #     - Removes unused packages
-#     - Configures Nano as the default system editor
+#     - Configures Vim as the default system editor
 #     - Schedules a system reboot in 1 minute to apply changes
 ###############################################################################
 
@@ -71,7 +69,14 @@ run() {
 }
 
 ###############################################################################
-# Packages
+# Refresh DNF Metadata
+###############################################################################
+
+run "Cleaning DNF cache" dnf clean all
+run "Rebuilding DNF package metadata cache" dnf makecache -y
+
+###############################################################################
+# DNF operations
 ###############################################################################
 
 REQUIRED_PACKAGES=(
@@ -79,38 +84,29 @@ REQUIRED_PACKAGES=(
     ca-certificates
     curl
     dnf-plugins-core
+    git
     gnupg2
     libselinux
-    nano
+    mlocate
     policycoreutils
     policycoreutils-python-utils
     policycoreutils-restorecond
-    python3-libselinux
     python3-dnf
+    python3-libselinux
+    setroubleshoot
+    setroubleshoot-plugins
+    setroubleshoot-server
     traceroute
+    vim
+    vim-common
+    vim-enhanced
+    vim-filesystem
+    vim-minimal
     wget
     yum-utils
 )
 
-REMOVE_PACKAGES=(
-    vim
-    vim-enhanced
-    vim-common
-    vim-minimal
-    vim-filesystem
-)
-
-###############################################################################
-# DNF operations
-###############################################################################
-
-run "Cleaning DNF cache" dnf clean all
-run "Rebuilding DNF package metadata cache" dnf makecache -y
-
 run "Installing required packages" dnf install -y "${REQUIRED_PACKAGES[@]}"
-
-run "Removing vim editor packages" dnf remove -y "${REMOVE_PACKAGES[@]}" \
-    || warn "Failed to remove one or more vim editor packages"
 
 run "Upgrading system packages" dnf upgrade -y --refresh
 
@@ -123,8 +119,8 @@ run "Removing unused packages" dnf autoremove -y
 log "Configuring system-wide editor settings"
 
 cat > /etc/profile.d/editor.sh <<'EOF'
-export EDITOR=nano
-export VISUAL=nano
+export EDITOR=vim
+export VISUAL=vim
 EOF
 
 chmod 0644 /etc/profile.d/editor.sh

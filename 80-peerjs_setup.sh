@@ -2,23 +2,30 @@
 
 ###############################################################################
 # Description:
-#   Deploys PeerJS real-time communication service and integrates it with HAProxy:
+#   Deploys PeerJS real-time communication service and integrates it with HAProxy on RHEL-based systems:
 #     - Requires root privileges
 #     - Logs all operations to /var/log/vision_deployment.log
-#     - Loads configuration from answers.txt and validates required variables and files
-#     - Installs Node.js 24
-#     - Installs and configures PM2 process manager
-#     - Deploys PeerJS application from Bitbucket
-#     - Installs Node.js dependencies using npm ci
-#     - Starts PeerJS application under PM2 and persists process list
-#     - Installs HAProxy TLS certificate for PeerJS endpoint
+#     - Loads configuration from answers.txt
+#     - Validates required variables
+#     - Validates required files
+#     - Validates required Jinja2 templates
+#     - Cleans and rebuilds the DNF package metadata cache
+#     - Resets the Node.js module stream
+#     - Enables the Node.js 24 module stream
+#     - Installs Node.js from the enabled Node.js 24 module stream
+#     - Installs PM2 globally and configures it to start automatically with systemd
+#     - Configures Bitbucket SSH key for secure Git access
+#     - Clones PeerJS application repositories from its branch
+#     - Installs Node.js dependencies
+#     - Starts the PeerJS application with PM2 and persists the PM2 process list
 #     - Installs Jinja2 to render HAProxy backend configuration
-#     - Generates HAProxy backend configuration
-#     - Removes Jinja2 after rendering configurations
-#     - Updates HAProxy hosts.map routing entry for PeerJS portal
+#     - Generates HAProxy configuration files from Jinja2 template
+#     - Removes Jinja2 after rendering HAProxy backend configuration
+#     - Installs HAProxy TLS certificate for PeerJS endpoint
+#     - Updates HAProxy host mapping file (hosts.map) with backend routing entries
 #     - Validates HAProxy configuration
-#     - Restarts, enables, and activates HAProxy service
-#     - Adds PeerJS hostname mapping to /etc/hosts if not present
+#     - Restarts and enables HAProxy service
+#     - Adds portal entry to /etc/hosts
 ###############################################################################
 
 set -Eeuo pipefail
@@ -143,9 +150,9 @@ REQUIRED_FILES=(
     "${CERT_SOURCE}"
 )
 
-for file in "${REQUIRED_FILES[@]}"; do
-    if [[ ! -f "${file}" ]]; then
-        error "Required file not found: ${file}"
+for var in "${REQUIRED_VARS[@]}"; do
+    if [[ -z "${!var:-}" ]]; then
+        error "Required variable '${var}' is not defined or is empty"
         exit 1
     fi
 done
@@ -182,6 +189,7 @@ run "Configuring PM2 startup" /usr/local/bin/pm2 startup systemd -u root --hp /r
 log "Configuring Bitbucket SSH key permissions"
 
 chmod 0400 "${BITBUCKET_KEY}"
+chown root:root "${BITBUCKET_KEY}"
 
 export GIT_SSH_COMMAND="ssh -i ${BITBUCKET_KEY} -o StrictHostKeyChecking=accept-new"
 
@@ -323,8 +331,7 @@ run "Validating HAProxy configuration" haproxy -c -f "${HAPROXY_CFG}" -f "${HAPR
 ###############################################################################
 
 run "Stopping HAProxy" systemctl stop haproxy
-run "Starting HAProxy" systemctl start haproxy
-run "Enabling HAProxy" systemctl enable haproxy
+run "Enabling HAProxy" systemctl enable --now haproxy
 
 ###############################################################################
 # Update /etc/hosts entry

@@ -5,19 +5,21 @@
 #   Configures Apache HTTPD for the Vision application on RHEL-based systems:
 #     - Requires root privileges
 #     - Logs all operations to /var/log/vision_deployment.log
-#     - Loads configuration from answers.txt and validates required variables
+#     - Loads configuration from answers.txt
+#     - Validates required variables
 #     - Removes default Apache configuration files and unused modules
-#     - Configures mod_status and Apache security hardening directives
+#     - Configures mod_status
 #     - Configures Apache listener to listen on 127.0.0.1:7080 by updating Listen directives
+#     - Configures Apache security hardening directives
 #     - Configures global ServerName
 #     - Installs Jinja2 to render virtual host configuration
 #     - Generates Apache virtual host configuration from Jinja2 template
-#     - Removes Jinja2 after rendering
+#     - Removes Jinja2 after rendering virtual host configuration
 #     - Creates and configures application-specific Apache log directory
 #     - Comments default DocumentRoot in main Apache configuration
 #     - Configures SELinux HTTP port mapping for 7080
-#     - Applies recursive application ownership and permission settings
-#     - Validates Apache configuration syntax before restart
+#     - Configures recursive application ownership and permission settings
+#     - Validates Apache configuration syntax
 #     - Enables and restarts Apache HTTPD service
 ###############################################################################
 
@@ -119,19 +121,10 @@ REQUIRED_VARS=(
 
 for var in "${REQUIRED_VARS[@]}"; do
     if [[ -z "${!var:-}" ]]; then
-        error "Required variable '${var}' is not defined"
+        error "Required variable '${var}' is not defined or is empty"
         exit 1
     fi
 done
-
-###############################################################################
-# Validate template
-###############################################################################
-
-if [[ ! -f "${TEMPLATE_FILE}" ]]; then
-    error "Template not found: ${TEMPLATE_FILE}"
-    exit 1
-fi
 
 ###############################################################################
 # Backup helper
@@ -272,9 +265,7 @@ run "Removing python3-jinja2" dnf remove -y python3-jinja2
 ###############################################################################
 
 run "Creating Apache log directory" mkdir -p "/var/log/httpd/${PORTAL_URL}"
-
 run "Setting Apache log directory ownership" chown root:root "/var/log/httpd/${PORTAL_URL}"
-
 run "Setting Apache log directory permissions" chmod 0755 "/var/log/httpd/${PORTAL_URL}"
 
 ###############################################################################
@@ -318,9 +309,8 @@ run "Validating Apache configuration" apachectl configtest
 # Restart Apache
 ###############################################################################
 
-run "Enabling HTTPD service" systemctl enable httpd
-
 run "Restarting HTTPD service" systemctl restart httpd
+run "Enabling HTTPD service" systemctl enable httpd
 
 ###############################################################################
 # Completion
