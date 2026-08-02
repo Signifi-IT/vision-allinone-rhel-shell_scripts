@@ -164,16 +164,16 @@ REQUIRED_PACKAGES=(
     php-cli
     php-common
     php-fpm
-    php-pgsql
-    php-opcache
-    php-mbstring
-    php-xml
-    php-intl
-    php-process
     php-gd
+    php-intl
+    php-mbstring
+    php-opcache
+    php-pgsql
+    php-process
+    php-xml
     postgresql14
-    postgresql14-server
     postgresql14-contrib
+    postgresql14-server
     python3-psycopg2
 )
 
