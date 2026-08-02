@@ -8,7 +8,6 @@
 #     - Loads configuration from answers.txt
 #     - Validates required variables
 #     - Validates required files
-#     - Validates required Jinja2 templates
 #     - Cleans and rebuilds the DNF package metadata cache
 #     - Installs HAProxy and rsyslog packages
 #     - Backs up and removes default HAProxy configuration
@@ -134,6 +133,21 @@ REQUIRED_VARS=(
 for var in "${REQUIRED_VARS[@]}"; do
     if [[ -z "${!var:-}" ]]; then
         error "Required variable '${var}' is not defined or is empty"
+        exit 1
+    fi
+done
+
+###############################################################################
+# Validate required files
+###############################################################################
+
+REQUIRED_FILES=(
+    "${CERT_PATH}"
+)
+
+for file in "${REQUIRED_FILES[@]}"; do
+    if [[ ! -f "${file}" ]]; then
+        error "Required file not found: ${file}"
         exit 1
     fi
 done

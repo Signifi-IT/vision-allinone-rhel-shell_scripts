@@ -8,7 +8,6 @@
 #     - Loads configuration from answers.txt
 #     - Validates required variables
 #     - Validates required files
-#     - Validates required Jinja2 templates
 #     - Cleans and rebuilds the DNF package metadata cache
 #     - Resets the Node.js module stream
 #     - Enables the Node.js 24 module stream
@@ -119,7 +118,6 @@ HAPROXY_MAP_DIR="/etc/haproxy/maps"
 HAPROXY_MAP_FILE="${HAPROXY_MAP_DIR}/hosts.map"
 
 HAPROXY_CERT_DIR="/etc/haproxy/certs"
-CERT_SOURCE="${CERT_PATH}"
 CERT_DEST="${HAPROXY_CERT_DIR}/${PEERJS_PORTAL_URL}.pem"
 
 PEERJS_TEMPLATE="${SCRIPT_DIR}/templates/peerjs_backend.j2"
@@ -132,6 +130,7 @@ PEERJS_HAPROXY_CFG="/etc/haproxy/conf.d/${PEERJS_PORTAL_URL}_backend.cfg"
 REQUIRED_VARS=(
     BITBUCKET_KEY
     PEERJS_PORTAL_URL
+    CERT_PATH
 )
 
 for var in "${REQUIRED_VARS[@]}"; do
@@ -147,7 +146,7 @@ done
 
 REQUIRED_FILES=(
     "${BITBUCKET_KEY}"
-    "${CERT_SOURCE}"
+    "${CERT_PATH}"
 )
 
 for var in "${REQUIRED_VARS[@]}"; do
@@ -304,7 +303,7 @@ run "Removing python3-jinja2" dnf remove -y python3-jinja2
 # Install certificate
 ###############################################################################
 
-run "Installing PeerJS TLS certificate" cp -f "${CERT_SOURCE}" "${CERT_DEST}"
+run "Installing PeerJS TLS certificate" cp -f "${CERT_PATH}" "${CERT_DEST}"
 
 chmod 0600 "${CERT_DEST}"
 chown root:root "${CERT_DEST}"
