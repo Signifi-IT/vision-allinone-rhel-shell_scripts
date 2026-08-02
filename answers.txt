@@ -5,12 +5,11 @@ POSTGRES_ADMIN_PASSWORD=""
 DB_USER_AUTHENTICATION_HBA=(
     postgres
     all
-    signifi
 )
 
 # List of networks allowed in pg_hba.conf for database authentication
 DB_NETWORK_AUTHENTICATION_HBA=(
-    69.17.187.138/32
+    x.x.x.x/x
 )
 
 # Application database owner username in PostgreSQL
@@ -32,40 +31,40 @@ BITBUCKET_KEY="${SCRIPT_DIR}/files/project_files/<filename>"
 PORTAL_URL=""
 
 # Git repository URL for the main Vision application
-APP_URL="git@bitbucket.org:teamsignifi/vision.git"
+APP_URL=""
 
 # Git branch to deploy for the main Vision application
-APP_BRANCH="qa-15.0.0"
+APP_BRANCH=""
 
 # Git repository URL for Vision application media assets
-APP_MEDIA_URL="git@bitbucket.org:teamsignifi/linkedin-media.git"
+APP_MEDIA_URL=""
 
 # Git branch to deploy for Vision application media assets
-APP_MEDIA_BRANCH="master"
+APP_MEDIA_BRANCH=""
 
 # Git repository URL for the Vision application API
-APP_API_URL="git@bitbucket.org:teamsignifi/linkedin-media.git"
+APP_API_URL=""
 
 # Git branch to deploy for the Vision application API
-APP_API_BRANCH="master"
+APP_API_BRANCH=""
 
 # Git repository URL for the Vision mobile application
-APP_MOBILE_URL="git@bitbucket.org:teamsignifi/mobile-ui-dist.git"
+APP_MOBILE_URL=""
 
 # Git branch to deploy for the Vision mobile application
-APP_MOBILE_BRANCH="release-25.0.0"
+APP_MOBILE_BRANCH=""
 
 # CIDR IP ranges allowed to access /status and /server-status endpoints via HAProxy
 ALLOWED_SERVER_STATUS_IPS=(
-    69.17.187.138/32
+    x.x.x.x/x
 )
 
 # Absolute path to the SSL/TLS certificate file used by the application
-CERT_PATH="${SCRIPT_DIR}/files/project_files/<haproxy_cert>.pem"
+CERT_PATH="${SCRIPT_DIR}/files/project_files/<filename>"
 
 # CIDR IP ranges allowed to access HAProxy stats /haproxy-stats endpoint
 HAPROXY_ALLOWED_STATS_IPS=(
-    69.17.187.138/32
+    x.x.x.x/x
 )
 
 # Public URL/domain of the PeerJS service
