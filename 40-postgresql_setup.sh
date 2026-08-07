@@ -382,11 +382,10 @@ run "Restoring database backup" \
 log "Querying migrations table for verification..."
 
 RESULT=$(
-    PGPASSWORD="${APP_DB_PASSWORD}" \
     "${PSQL}" \
         -h 127.0.0.1 \
         -p 5431 \
-        -U "${APP_DB_USER}" \
+        -U postgres \
         -d "${APP_DB_NAME}" \
         -At \
         -c "SELECT * FROM migrations;"
