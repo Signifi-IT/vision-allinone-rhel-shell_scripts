@@ -8,6 +8,7 @@
 #     - Loads configuration from answers.txt
 #     - Validates required variables
 #     - Validates required files
+#     - Temporarily sets local PostgreSQL authentication to trust before configuring the postgres password
 #     - Sets PostgreSQL admin user (postgres) password
 #     - Backs up pg_hba.conf
 #     - Enforces SCRAM-SHA-256 authentication rules for local and network access and appending validated entries
@@ -176,6 +177,42 @@ done
 
 if [[ "${READY}" -ne 1 ]]; then
     error "PostgreSQL failed to become ready"
+    exit 1
+fi
+
+###############################################################################
+# Temporarily set local authentication to trust
+###############################################################################
+
+backup_file_if_needed "${PG_HBA}"
+
+log "Temporarily setting local authentication to trust for all users"
+
+sed -i \
+    "/^[[:space:]]*local[[:space:]]\+all[[:space:]]\+all[[:space:]]/d" \
+    "${PG_HBA}"
+
+echo "local   all   all   trust" >> "${PG_HBA}"
+
+run "Restarting PostgreSQL to apply temporary trust authentication" systemctl restart postgresql-14
+
+run "Enabling PostgreSQL service" systemctl enable postgresql-14
+
+log "Waiting for PostgreSQL readiness after temporary trust authentication..."
+
+READY=0
+
+for i in {1..30}; do
+    if "${PG_ISREADY}" -h 127.0.0.1 -p "${POSTGRES_PORT}" >/dev/null 2>&1; then
+        READY=1
+        log "PostgreSQL is ready after temporary trust authentication"
+        break
+    fi
+    sleep 1
+done
+
+if [[ "${READY}" -ne 1 ]]; then
+    error "PostgreSQL failed to become ready after temporary trust authentication"
     exit 1
 fi
 
