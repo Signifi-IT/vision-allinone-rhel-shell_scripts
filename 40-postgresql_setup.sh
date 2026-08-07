@@ -221,8 +221,11 @@ fi
 ###############################################################################
 
 run "Setting postgres admin password" \
-    sudo -u postgres "${PSQL}" -p "${POSTGRES_PORT}" -d postgres \
-    -c "ALTER USER postgres PASSWORD '${POSTGRES_ADMIN_PASSWORD}';"
+    "${PSQL}" \
+        -d postgres \
+        -U postgres \
+        -p "${POSTGRES_PORT}" \
+        -c "ALTER USER postgres PASSWORD '${POSTGRES_ADMIN_PASSWORD}';"
 
 ###############################################################################
 # Updating pg_hba.conf
