@@ -350,6 +350,21 @@ else
 fi
 
 ###############################################################################
+# Grant SUPERUSER privilege to application database user
+###############################################################################
+
+export PGPASSWORD="${POSTGRES_ADMIN_PASSWORD}"
+
+run "Granting SUPERUSER privilege to ${APP_DB_USER}" \
+    "${PSQL}" \
+        -h 127.0.0.1 \
+        -p "${POSTGRES_PORT}" \
+        -U postgres \
+        -d postgres \
+        -v ON_ERROR_STOP=1 \
+        -c "ALTER ROLE \"${APP_DB_USER}\" WITH SUPERUSER;"
+
+###############################################################################
 # Grant privileges on database
 ###############################################################################
 
