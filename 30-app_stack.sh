@@ -256,7 +256,7 @@ done
 # Remaining services
 ###############################################################################
 
-for svc in httpd php-fpm auditd restorecond postgresql-14; do
+for svc in auditd httpd php-fpm postgresql-14 restorecond; do
     run "Enabling and starting ${svc}" systemctl enable --now "${svc}"
 done
 

@@ -382,6 +382,8 @@ run "Granting database privileges to ${APP_DB_USER}" \
 
 export PGPASSWORD="${POSTGRES_ADMIN_PASSWORD}"
 
+log "Restoring database backup"
+
 run "Restoring database backup" \
     "${PG_RESTORE}" \
         -p "${POSTGRES_PORT}" \
