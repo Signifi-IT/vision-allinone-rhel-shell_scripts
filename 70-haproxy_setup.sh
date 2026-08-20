@@ -250,15 +250,13 @@ run "Restarting rsyslog service" systemctl restart rsyslog
 ###############################################################################
 
 run "Deploying HAProxy default configuration file" cp -f \
-    "${HAPROXY_MAIN_SRC}" \
-    "${HAPROXY_CFG}"
+    "${HAPROXY_MAIN_SRC}" "${HAPROXY_CFG}"
    
 chmod 0644 "${HAPROXY_CFG}"
 chown root:root "${HAPROXY_CFG}"
 
 run "Deploying HAProxy unknown host backend configuration file" cp -f \
-    "${UNKNOWN_BACKEND_SRC}" \
-    "${HAPROXY_CONF_DIR}/02-unknown-host.cfg"
+    "${UNKNOWN_BACKEND_SRC}" "${HAPROXY_CONF_DIR}/02-unknown-host.cfg"
 
 chmod 0644 "${HAPROXY_CONF_DIR}/02-unknown-host.cfg"
 chown root:root "${HAPROXY_CONF_DIR}/02-unknown-host.cfg"

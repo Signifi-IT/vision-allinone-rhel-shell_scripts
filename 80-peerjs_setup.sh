@@ -241,7 +241,7 @@ run "Setting PeerJS application permissions" \
     find "${PEERJS_DIR}" -type d -exec chmod 0755 {} + && \
     find "${PEERJS_DIR}" -type f -exec chmod 0644 {} +
 
-run "Setting PeerJS application ownership" chown -R root:root "${PEERJS_DIR}"
+run "Setting PeerJS application ownership" chown -R root:apache "${PEERJS_DIR}"
 
 ###############################################################################
 # PM2 deployment

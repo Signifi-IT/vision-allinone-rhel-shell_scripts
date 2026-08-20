@@ -18,7 +18,6 @@
 #     - Creates and configures application-specific Apache log directory
 #     - Comments default DocumentRoot in main Apache configuration
 #     - Configures SELinux HTTP port mapping for 7080
-#     - Configures recursive application ownership and permission settings
 #     - Validates Apache configuration syntax
 #     - Enables and restarts Apache HTTPD service
 ###############################################################################
@@ -288,16 +287,6 @@ else
     log "SELinux HTTP port 7080 already configured"
 
 fi
-
-###############################################################################
-# Application permissions
-###############################################################################
-
-run "Setting application permissions" \
-    find "${APP_DIR}" -type d -exec chmod 0755 {} + && \
-    find "${APP_DIR}" -type f -exec chmod 0644 {} +
-
-run "Setting application ownership" chown -R root:apache "${APP_DIR}"
 
 ###############################################################################
 # Validate Apache

@@ -8,6 +8,7 @@
 #     - Logs all operations to /var/log/vision_deployment.log
 #     - Loads configuration from answers.txt
 #     - Validates required variables
+#     - Configures recursive application ownership and permission settings
 #     - Configures SELinux file contexts for the application sessions directory
 #     - Configures SELinux file contexts for the application media directory
 #     - Applies SELinux contexts recursively using restorecon
@@ -130,6 +131,16 @@ for dir in "${REQUIRED_DIRS[@]}"; do
 done
 
 ###############################################################################
+# Application permissions
+###############################################################################
+
+run "Setting application permissions" \
+    find "${APP_DIR}" -type d -exec chmod 0755 {} + && \
+    find "${APP_DIR}" -type f -exec chmod 0644 {} +
+
+run "Setting application ownership" chown -R root:apache "${APP_DIR}"
+
+###############################################################################
 # Configure SELinux file contexts
 ###############################################################################
 
@@ -143,7 +154,7 @@ run "Configuring SELinux context for media directory" \
 # Apply SELinux contexts
 ###############################################################################
 
-run "Restoring SELinux contexts for ${APP_DIR}" restorecon -Rv "${APP_DIR}"
+run "Restoring SELinux contexts for ${APP_DIR}" restorecon -RvF "${APP_DIR}"
 
 ###############################################################################
 # Configure filesystem permissions

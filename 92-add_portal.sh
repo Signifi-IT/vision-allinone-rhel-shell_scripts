@@ -6,28 +6,36 @@
 #     - Requires root privileges
 #     - Logs all operations to /var/log/vision_deployment.log
 #     - Loads configuration from answers-add_portal.txt
-#     - Validates required variables, files, and templates
-#     - Uses the PostgreSQL backup file directly from BACKUP_FILE_PATH
-#     - Creates the new PostgreSQL application database
-#     - Grants database privileges to the existing application database user
-#     - Restores the new portal database from backup
-#     - Queries migrations table for verification
-#     - Creates the new application portal directory under /var/www
-#     - Uses the local Bitbucket SSH key directly from BITBUCKET_KEY
-#     - Clones or synchronizes application, media, API, and mobile repositories
-#     - Deploys media, API, and mobile assets into the new portal directory
-#     - Creates required application session directory
+#     - Validates required variables
+#     - Validates required files
+#     - Creates application database
+#     - Grants required database privileges to application user
+#     - Restores application database from backup
+#     - Query migration table and logs results for verification
+#     - Creates application directory structure under /var/www
+#     - Configures Bitbucket SSH key for secure Git access
+#     - Clones application, media, API, and mobile repositories from their branches
+#     - Deploys media, API, and mobile assets into application directory structure
+#     - Creates required application session directories
 #     - Removes temporary repository working directories
-#     - Installs Jinja2 to render Apache and HAProxy templates
-#     - Renders and deploys Apache virtual host configuration
-#     - Creates Apache log directory for the new portal
-#     - Validates and restarts Apache HTTPD
-#     - Renders and deploys HAProxy backend configuration
+#     - Installs Jinja2 to render templates
+#     - Generates Apache virtual host configuration from Jinja2 template
+#     - Creates and configures application-specific Apache log directory
+#     - Validates Apache configuration syntax
+#     - Enables and restarts Apache HTTPD service
+#     - Generates HAProxy configuration files from Jinja2 templates
 #     - Removes Jinja2 after rendering templates
-#     - Installs TLS certificate for the new portal
-#     - Updates HAProxy hosts.map
-#     - Validates and restarts HAProxy
-#     - Adds the new portal hostname mapping to /etc/hosts
+#     - Installs TLS certificate
+#     - Updates HAProxy host mapping file (hosts.map) with backend routing entries
+#     - Validates HAProxy configuration
+#     - Restarts and enables HAProxy service
+#     - Adds portal entry to /etc/hosts
+#     - Configures recursive application ownership and permission settings
+#     - Configures SELinux file contexts for the application sessions directory
+#     - Configures SELinux file contexts for the application media directory
+#     - Applies SELinux contexts recursively using restorecon
+#     - Sets writable permissions on the application media directory
+#     - Sets writable permissions on the application sessions directory
 ###############################################################################
 
 set -Eeuo pipefail
@@ -117,6 +125,8 @@ PG_ISREADY="/usr/pgsql-14/bin/pg_isready"
 BACKUP_FILE="${BACKUP_FILE_PATH}"
 
 APP_DIR="/var/www/${PORTAL_URL}"
+MEDIA_DIR="${APP_DIR}/media"
+SESSIONS_DIR="${APP_DIR}/api/application/sessions"
 
 TEMPLATE_FILE="${SCRIPT_DIR}/templates/site_template.j2"
 PORTAL_BACKEND_TEMPLATE="${SCRIPT_DIR}/templates/portal_backend.j2"
@@ -237,6 +247,21 @@ else
 fi
 
 ###############################################################################
+# Grant SUPERUSER privilege to application database user
+###############################################################################
+
+export PGPASSWORD="${POSTGRES_ADMIN_PASSWORD}"
+
+run "Granting SUPERUSER privilege to ${APP_DB_USER}" \
+    "${PSQL}" \
+        -h 127.0.0.1 \
+        -p "${POSTGRES_PORT}" \
+        -U postgres \
+        -d postgres \
+        -v ON_ERROR_STOP=1 \
+        -c "ALTER ROLE \"${APP_DB_USER}\" WITH SUPERUSER;"
+
+###############################################################################
 # Grant privileges on database
 ###############################################################################
 
@@ -254,6 +279,8 @@ run "Granting database privileges to ${APP_DB_USER}" \
 
 export PGPASSWORD="${POSTGRES_ADMIN_PASSWORD}"
 
+log "Restoring database backup"
+
 run "Restoring database backup" \
     "${PG_RESTORE}" \
         -p "${POSTGRES_PORT}" \
@@ -269,19 +296,16 @@ run "Restoring database backup" \
 log "Querying migrations table for verification..."
 
 RESULT=$(
-    PGPASSWORD="${APP_DB_PASSWORD}" \
     "${PSQL}" \
         -h 127.0.0.1 \
         -p 5431 \
-        -U "${APP_DB_USER}" \
+        -U postgres \
         -d "${APP_DB_NAME}" \
         -At \
         -c "SELECT * FROM migrations;"
 )
 
 log "Migrations table output: ${RESULT}"
-
-unset PGPASSWORD
 
 ###############################################################################
 # Application directory
@@ -291,7 +315,7 @@ log "Creating application portal directory"
 
 mkdir -p "${APP_DIR}"
 chmod 0755 "${APP_DIR}"
-chown root:root "${APP_DIR}"
+chown -R root:apache "${APP_DIR}"
 
 ###############################################################################
 # Git SSH configuration
@@ -370,7 +394,7 @@ for component in media api mobile; do
     cp -a "${SOURCE}/." "${DEST}/"
 
     chmod 0755 "${DEST}"
-    chown root:root "${DEST}"
+    chown -R root:apache "${DEST}"
 
 done
 
@@ -384,7 +408,7 @@ log "Creating application session directory"
 
 mkdir -p "${SESSION_DIR}"
 chmod 0755 "${SESSION_DIR}"
-chown root:root "${SESSION_DIR}"
+chown -R root:apache "${SESSION_DIR}"
 
 ###############################################################################
 # Remove temporary repository directories
@@ -400,16 +424,6 @@ for component in media api mobile; do
     fi
 
 done
-
-###############################################################################
-# Application permissions
-###############################################################################
-
-run "Setting application permissions" \
-    find "${APP_DIR}" -type d -exec chmod 0755 {} + && \
-    find "${APP_DIR}" -type f -exec chmod 0644 {} +
-
-run "Setting application ownership" chown -R root:root "${APP_DIR}"
 
 ###############################################################################
 # Install Jinja2
@@ -453,9 +467,7 @@ chown root:root "${SITE_CONFIG}"
 ###############################################################################
 
 run "Creating Apache log directory" mkdir -p "/var/log/httpd/${PORTAL_URL}"
-
 run "Setting Apache log directory ownership" chown root:root "/var/log/httpd/${PORTAL_URL}"
-
 run "Setting Apache log directory permissions" chmod 0755 "/var/log/httpd/${PORTAL_URL}"
 
 ###############################################################################
@@ -468,9 +480,8 @@ run "Validating Apache configuration" apachectl configtest
 # Restart Apache
 ###############################################################################
 
-run "Enabling HTTPD service" systemctl enable httpd
-
 run "Restarting HTTPD service" systemctl restart httpd
+run "Enabling HTTPD service" systemctl enable httpd
 
 ###############################################################################
 # Render portal backend config
@@ -532,8 +543,7 @@ run "Validating HAProxy configuration" haproxy -c -f "${HAPROXY_CFG}" -f "${HAPR
 ###############################################################################
 
 run "Stopping HAProxy" systemctl stop haproxy
-run "Starting HAProxy" systemctl start haproxy
-run "Enabling HAProxy" systemctl enable haproxy
+run "Enabling HAProxy" systemctl enable --now haproxy
 
 ###############################################################################
 # Update /etc/hosts entry
@@ -547,10 +557,45 @@ grep -qE "^[[:space:]]*${SYSTEM_IP}[[:space:]]+${PORTAL_URL}$" /etc/hosts || \
     echo "${SYSTEM_IP} ${PORTAL_URL}" >> /etc/hosts
 
 ###############################################################################
+# Application permissions
+###############################################################################
+
+run "Setting application permissions" \
+    find "${APP_DIR}" -type d -exec chmod 0755 {} + && \
+    find "${APP_DIR}" -type f -exec chmod 0644 {} +
+
+run "Setting application ownership" chown -R root:apache "${APP_DIR}"
+
+###############################################################################
+# Configure SELinux file contexts
+###############################################################################
+
+run "Configuring SELinux context for sessions directory" \
+    semanage fcontext -a -t httpd_sys_rw_content_t "${SESSIONS_DIR}(/.*)?"
+
+run "Configuring SELinux context for media directory" \
+    semanage fcontext -a -t httpd_sys_rw_content_t "${MEDIA_DIR}(/.*)?"
+
+###############################################################################
+# Apply SELinux contexts
+###############################################################################
+
+run "Restoring SELinux contexts for ${APP_DIR}" restorecon -RvF "${APP_DIR}"
+
+###############################################################################
+# Configure filesystem permissions
+###############################################################################
+
+run "Setting media directory permissions" chmod 770 "${MEDIA_DIR}"
+
+run "Setting sessions directory permissions" chmod 770 "${SESSIONS_DIR}"
+
+###############################################################################
 # Completion
 ###############################################################################
 
+unset PGPASSWORD
+unset GIT_SSH_COMMAND
 unset PORTAL_URL
 unset ALLOWED_IPS
-unset GIT_SSH_COMMAND
 log "New portal configuration completed successfully."

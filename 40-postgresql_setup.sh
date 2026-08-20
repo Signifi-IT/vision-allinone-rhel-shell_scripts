@@ -320,8 +320,10 @@ END
 "
 
 ###############################################################################
-# Create application database
+# Create PostgreSQL application database
 ###############################################################################
+
+export PGPASSWORD="${POSTGRES_ADMIN_PASSWORD}"
 
 DB_EXISTS=$(
     "${PSQL}" \
