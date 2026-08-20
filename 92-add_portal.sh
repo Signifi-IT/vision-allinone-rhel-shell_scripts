@@ -125,8 +125,6 @@ PG_ISREADY="/usr/pgsql-14/bin/pg_isready"
 BACKUP_FILE="${BACKUP_FILE_PATH}"
 
 APP_DIR="/var/www/${PORTAL_URL}"
-MEDIA_DIR="${APP_DIR}/media"
-SESSIONS_DIR="${APP_DIR}/api/application/sessions"
 
 TEMPLATE_FILE="${SCRIPT_DIR}/templates/site_template.j2"
 PORTAL_BACKEND_TEMPLATE="${SCRIPT_DIR}/templates/portal_backend.j2"
@@ -145,13 +143,13 @@ CERT_DEST="${HAPROXY_CERT_DIR}/${PORTAL_URL}.pem"
 ###############################################################################
 
 REQUIRED_VARS=(
-    POSTGRES_ADMIN_PASSWORD
     APP_DB_USER
-    APP_DB_PASSWORD
     APP_DB_NAME
+    APP_DB_PASSWORD
+    POSTGRES_ADMIN_PASSWORD
     BACKUP_FILE_PATH
-    BITBUCKET_KEY
     PORTAL_URL
+    BITBUCKET_KEY
     APP_URL
     APP_BRANCH
     APP_MEDIA_URL
@@ -555,44 +553,6 @@ log "Adding Portal host entry to /etc/hosts"
 
 grep -qE "^[[:space:]]*${SYSTEM_IP}[[:space:]]+${PORTAL_URL}$" /etc/hosts || \
     echo "${SYSTEM_IP} ${PORTAL_URL}" >> /etc/hosts
-
-###############################################################################
-# Application permissions
-###############################################################################
-
-run "Setting application permissions" \
-    find "${APP_DIR}" -type d -exec chmod 0755 {} + && \
-    find "${APP_DIR}" -type f -exec chmod 0644 {} +
-
-run "Setting application ownership" chown -R root:apache "${APP_DIR}"
-
-###############################################################################
-# Configure SELinux file contexts
-###############################################################################
-
-run "Configuring SELinux context for sessions directory" \
-    semanage fcontext -a -t httpd_sys_rw_content_t "${SESSIONS_DIR}(/.*)?"
-
-run "Configuring SELinux context for media directory" \
-    semanage fcontext -a -t httpd_sys_rw_content_t "${MEDIA_DIR}(/.*)?"
-
-###############################################################################
-# Apply SELinux contexts
-###############################################################################
-
-run "Restoring SELinux contexts for ${APP_DIR}" restorecon -RvF "${APP_DIR}"
-
-###############################################################################
-# Configure filesystem permissions
-###############################################################################
-
-run "Setting media directory permissions" chmod 770 "${MEDIA_DIR}"
-
-run "Setting sessions directory permissions" chmod 770 "${SESSIONS_DIR}"
-
-###############################################################################
-# Completion
-###############################################################################
 
 unset PGPASSWORD
 unset GIT_SSH_COMMAND

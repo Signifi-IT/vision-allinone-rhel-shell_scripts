@@ -6,7 +6,9 @@
 #   application directories on RHEL-based systems:
 #     - Requires root privileges
 #     - Logs all operations to /var/log/vision_deployment.log
-#     - Loads configuration from answers.txt
+#     - Requires --answer-file argument to load the desired answer file
+#     - Supports running against different portal answer files
+#     - Loads configuration from the provided answer file
 #     - Validates required variables
 #     - Configures recursive application ownership and permission settings
 #     - Configures SELinux file contexts for the application sessions directory
@@ -72,11 +74,64 @@ run() {
 }
 
 ###############################################################################
+# Usage
+###############################################################################
+
+usage() {
+    cat <<EOF
+Usage:
+  bash $(basename "$0") --answer-file <filepath>.txt
+
+Example:
+  bash $(basename "$0") --answer-file /tmp/scripts/answers.txt
+  bash $(basename "$0") --answer-file /tmp/scripts/answers-add_portal.txt
+EOF
+}
+
+###############################################################################
+# Parse arguments
+###############################################################################
+
+ANSWER_FILE=""
+
+while [[ "$#" -gt 0 ]]; do
+    case "$1" in
+        --answer-file)
+            if [[ -z "${2:-}" ]]; then
+                error "Missing value for --answer-file"
+                usage
+                exit 1
+            fi
+
+            ANSWER_FILE="$2"
+            shift 2
+            ;;
+
+        -h|--help)
+            usage
+            exit 0
+            ;;
+
+        *)
+            error "Unknown argument: $1"
+            usage
+            exit 1
+            ;;
+    esac
+done
+
+if [[ -z "${ANSWER_FILE}" ]]; then
+    error "Required argument --answer-file is missing"
+    usage
+    exit 1
+fi
+
+###############################################################################
 # Load configuration
 ###############################################################################
 
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
-CONFIG_FILE="${SCRIPT_DIR}/answers.txt"
+CONFIG_FILE="${ANSWER_FILE}"
 
 if [[ ! -f "${CONFIG_FILE}" ]]; then
     error "Configuration file not found: ${CONFIG_FILE}"
