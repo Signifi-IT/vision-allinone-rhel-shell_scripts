@@ -106,7 +106,7 @@ REQUIRED_PACKAGES=(
     yum-utils
 )
 
-run "Installing required packages" dnf install -y "${REQUIRED_PACKAGES[@]} --refresh"
+run "Installing required packages" dnf install -y --refresh "${REQUIRED_PACKAGES[@]}"
 
 run "Upgrading system packages" dnf upgrade -y --refresh
 

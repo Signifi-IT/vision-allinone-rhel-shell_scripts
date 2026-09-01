@@ -99,7 +99,7 @@ run "Importing PostgreSQL repository GPG key" rpm --import "${PGDG_GPG_KEY_URL}"
 # Install PostgreSQL Repository
 ###############################################################################
 
-run "Installing PostgreSQL repository RPM" dnf install -y "${PGDG_REPO_RPM} --refresh"
+run "Installing PostgreSQL repository RPM" dnf install -y --refresh "${PGDG_REPO_RPM}"
 
 ###############################################################################
 # Refresh DNF Metadata

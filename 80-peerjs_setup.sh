@@ -167,7 +167,7 @@ run "Resetting Node.js module" dnf module reset nodejs -y
 
 run "Enabling Node.js 24 module stream" dnf module enable nodejs:24 -y
 
-run "Installing Node.js" dnf install -y nodejs --refresh
+run "Installing Node.js" dnf install -y --refresh nodejs
 
 ###############################################################################
 # Install PM2
@@ -266,7 +266,7 @@ run "Persisting PM2 process list" \
 # Install Jinja2
 ###############################################################################
 
-run "Installing python3-jinja2" dnf install -y python3-jinja2 --refresh
+run "Installing python3-jinja2" dnf install -y --refresh python3-jinja2
 
 ###############################################################################
 # Render PeerJS backend configuration

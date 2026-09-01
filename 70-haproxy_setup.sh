@@ -179,7 +179,7 @@ run "Rebuilding DNF package metadata cache" dnf makecache -y
 # Install packages
 ###############################################################################
 
-run "Installing HAProxy and rsyslog" dnf install -y haproxy rsyslog --refresh
+run "Installing HAProxy and rsyslog" dnf install -y --refresh haproxy rsyslog
 
 ###############################################################################
 # Backup and remove default config
@@ -265,7 +265,7 @@ chown root:root "${HAPROXY_CONF_DIR}/02-unknown-host.cfg"
 # Jinja2 install
 ###############################################################################
 
-run "Installing python3-jinja2" dnf install -y python3-jinja2 --refresh
+run "Installing python3-jinja2" dnf install -y --refresh python3-jinja2
 
 ###############################################################################
 # Render global frontend config

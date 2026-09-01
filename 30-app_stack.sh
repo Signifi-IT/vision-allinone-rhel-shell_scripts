@@ -97,7 +97,7 @@ PG_ISREADY="/usr/pgsql-14/bin/pg_isready"
 
 run "Importing EPEL GPG key" rpm --import "${EPEL_GPG_KEY}"
 
-run "Installing EPEL repository" dnf install -y "${EPEL_RPM} --refresh"
+run "Installing EPEL repository" dnf install -y --refresh "${EPEL_RPM}"
 
 ###############################################################################
 # CodeReady Builder
@@ -142,7 +142,7 @@ run "Upgrading system packages" dnf upgrade -y --refresh
 # PHP profile
 ###############################################################################
 
-run "Installing PHP 8.2 common profile" dnf install -y "@php:8.2/common --refresh"
+run "Installing PHP 8.2 common profile" dnf install -y --refresh "@php:8.2/common"
 
 ###############################################################################
 # Refresh DNF Metadata
@@ -176,7 +176,7 @@ REQUIRED_PACKAGES=(
     postgresql14-server
 )
 
-run "Installing application packages" dnf install -y "${REQUIRED_PACKAGES[@]} --refresh"
+run "Installing application packages" dnf install -y --refresh "${REQUIRED_PACKAGES[@]}"
 
 ###############################################################################
 # PostgreSQL initialization
