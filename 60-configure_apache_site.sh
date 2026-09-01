@@ -220,7 +220,7 @@ fi
 # Install Jinja2
 ###############################################################################
 
-run "Installing python3-jinja2" dnf install -y python3-jinja2
+run "Installing python3-jinja2" dnf install -y python3-jinja2 --refresh
 
 ###############################################################################
 # Render virtual host configuration
