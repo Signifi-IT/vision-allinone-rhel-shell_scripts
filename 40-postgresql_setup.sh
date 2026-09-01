@@ -245,6 +245,7 @@ fi
 
 run "Setting postgres admin password" \
     "${PSQL}" \
+        -h 127.0.0.1 \
         -d postgres \
         -U postgres \
         -p "${POSTGRES_PORT}" \
