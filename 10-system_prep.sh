@@ -6,7 +6,7 @@
 #     - Requires root privileges
 #     - Logs all actions to /var/log/vision_deployment.log
 #     - Cleans and rebuilds the DNF package metadata cache
-#     - Installs required system utilities and dependencies
+#     - Installs missing required system utilities and dependencies
 #     - Performs a full system upgrade
 #     - Removes unused packages
 #     - Configures Vim as the default system editor
@@ -106,7 +106,26 @@ REQUIRED_PACKAGES=(
     yum-utils
 )
 
-run "Installing required packages" dnf install -y --refresh "${REQUIRED_PACKAGES[@]}"
+MISSING_PACKAGES=()
+
+for package in "${REQUIRED_PACKAGES[@]}"; do
+    if rpm -q "${package}" >/dev/null 2>&1; then
+        log "Package already installed: ${package}"
+    else
+        MISSING_PACKAGES+=("${package}")
+    fi
+done
+
+if [[ "${#MISSING_PACKAGES[@]}" -gt 0 ]]; then
+
+    run "Installing missing required packages" \
+        dnf install -y --refresh "${MISSING_PACKAGES[@]}"
+
+else
+
+    log "All required packages are already installed"
+
+fi
 
 run "Upgrading system packages" dnf upgrade -y --refresh
 

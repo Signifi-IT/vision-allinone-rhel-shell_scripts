@@ -8,7 +8,7 @@
 #     - Cleans and rebuilds the DNF package metadata cache
 #     - Disables the built-in PostgreSQL module
 #     - Imports the PostgreSQL repository GPG signing key
-#     - Installs the PostgreSQL repository RPM
+#     - Installs the PostgreSQL repository RPM when missing
 #     - Cleans and rebuilds the DNF package metadata cache after repository installation
 #     - Ensures the built-in PostgreSQL module remains disabled
 ###############################################################################
@@ -99,7 +99,29 @@ run "Importing PostgreSQL repository GPG key" rpm --import "${PGDG_GPG_KEY_URL}"
 # Install PostgreSQL Repository
 ###############################################################################
 
-run "Installing PostgreSQL repository RPM" dnf install -y --refresh "${PGDG_REPO_RPM}"
+if rpm -q pgdg-redhat-repo >/dev/null 2>&1; then
+
+    log "PostgreSQL repository RPM already installed"
+
+else
+
+    run "Installing PostgreSQL repository RPM" \
+        dnf install -y --refresh "${PGDG_REPO_RPM}"
+
+fi
+
+###############################################################################
+# Validate PostgreSQL Repository Installation
+###############################################################################
+
+if [[ ! -f /etc/yum.repos.d/pgdg-redhat-all.repo ]]; then
+    error "PostgreSQL repository file was not created: /etc/yum.repos.d/pgdg-redhat-all.repo"
+    exit 1
+fi
+
+PGDG_REPO_VERSION="$(rpm -q pgdg-redhat-repo)"
+
+log "PostgreSQL repository package status: ${PGDG_REPO_VERSION}"
 
 ###############################################################################
 # Refresh DNF Metadata
