@@ -141,11 +141,11 @@ UNNECESSARY_REPOS=(
 )
 
 for repo in "${UNNECESSARY_REPOS[@]}"; do
-    if dnf repolist --all | awk '{print $1}' | grep -qx "${repo}"; then
+    if dnf repolist | awk '{print $1}' | grep -qx "${repo}"; then
         run "Disabling DNF repository: ${repo}" \
             dnf config-manager --set-disabled "${repo}"
     else
-        log "DNF repository not present, skipping disable: ${repo}"
+        log "DNF repository already disabled or not enabled: ${repo}"
     fi
 done
 
