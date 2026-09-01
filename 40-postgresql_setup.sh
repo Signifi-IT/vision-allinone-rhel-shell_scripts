@@ -128,11 +128,26 @@ for var in "${REQUIRED_VARS[@]}"; do
 done
 
 ###############################################################################
+# Validate required arrays
+###############################################################################
+
+if [[ "${#DB_USER_AUTHENTICATION_HBA[@]}" -eq 0 ]]; then
+    error "Required array 'DB_USER_AUTHENTICATION_HBA' is not defined or is empty"
+    exit 1
+fi
+
+if [[ "${#DB_NETWORK_AUTHENTICATION_HBA[@]}" -eq 0 ]]; then
+    error "Required array 'DB_NETWORK_AUTHENTICATION_HBA' is not defined or is empty"
+    exit 1
+fi
+
+###############################################################################
 # Validate required files
 ###############################################################################
 
 REQUIRED_FILES=(
     "${BACKUP_FILE}"
+    "${PG_HBA}"
 )
 
 for file in "${REQUIRED_FILES[@]}"; do
@@ -188,13 +203,21 @@ backup_file_if_needed "${PG_HBA}"
 
 log "Temporarily setting local authentication to trust for all users"
 
-sed -i \
-    "/^[[:space:]]*local[[:space:]]\+all[[:space:]]\+all[[:space:]]/d" \
-    "${PG_HBA}"
+if grep -qE '^[[:space:]]*local[[:space:]]+all[[:space:]]+all[[:space:]]+trust([[:space:]]|$)' "${PG_HBA}"; then
 
-echo "local   all   all   trust" >> "${PG_HBA}"
+    log "Temporary local trust authentication is already configured"
 
-run "Restarting PostgreSQL to apply temporary trust authentication" systemctl restart postgresql-14
+else
+
+    sed -i \
+        "/^[[:space:]]*local[[:space:]]\+all[[:space:]]\+all[[:space:]]/d" \
+        "${PG_HBA}"
+
+    echo "local   all   all   trust" >> "${PG_HBA}"
+
+    run "Restarting PostgreSQL to apply temporary trust authentication" systemctl restart postgresql-14
+
+fi
 
 run "Enabling PostgreSQL service" systemctl enable postgresql-14
 
@@ -225,6 +248,7 @@ run "Setting postgres admin password" \
         -d postgres \
         -U postgres \
         -p "${POSTGRES_PORT}" \
+        -v ON_ERROR_STOP=1 \
         -c "ALTER USER postgres PASSWORD '${POSTGRES_ADMIN_PASSWORD}';"
 
 ###############################################################################
@@ -370,6 +394,8 @@ run "Granting SUPERUSER privilege to ${APP_DB_USER}" \
 # Grant privileges on database
 ###############################################################################
 
+export PGPASSWORD="${POSTGRES_ADMIN_PASSWORD}"
+
 run "Granting database privileges to ${APP_DB_USER}" \
     "${PSQL}" \
         -h 127.0.0.1 \
@@ -384,15 +410,39 @@ run "Granting database privileges to ${APP_DB_USER}" \
 
 export PGPASSWORD="${POSTGRES_ADMIN_PASSWORD}"
 
-log "Restoring database backup"
+log "Checking whether migrations table already exists..."
 
-run "Restoring database backup" \
-    "${PG_RESTORE}" \
+MIGRATIONS_EXISTS=$(
+    "${PSQL}" \
+        -h 127.0.0.1 \
         -p "${POSTGRES_PORT}" \
-        --username postgres \
-        --dbname "${APP_DB_NAME}" \
-        "${BACKUP_FILE}" \
-        >/dev/null 2>&1 || true
+        -U postgres \
+        -d "${APP_DB_NAME}" \
+        -At \
+        -c "SELECT to_regclass('public.migrations');"
+)
+
+if [[ "${MIGRATIONS_EXISTS}" == "migrations" ]]; then
+
+    log "Database is already migrated. Skipping database restore."
+
+else
+
+    log "Migrations table does not exist. Restoring database backup."
+
+    if ! run "Restoring database backup" \
+        "${PG_RESTORE}" \
+            -p "${POSTGRES_PORT}" \
+            --username postgres \
+            --dbname "${APP_DB_NAME}" \
+            "${BACKUP_FILE}"; then
+
+        warn "pg_restore returned a non-zero exit code, continuing because restore errors are being tolerated"
+
+    fi
+
+fi
+
 
 ###############################################################################
 # Migration verification
@@ -400,17 +450,35 @@ run "Restoring database backup" \
 
 log "Querying migrations table for verification..."
 
-RESULT=$(
+MIGRATIONS_EXISTS=$(
     "${PSQL}" \
         -h 127.0.0.1 \
-        -p 5431 \
+        -p "${POSTGRES_PORT}" \
         -U postgres \
         -d "${APP_DB_NAME}" \
         -At \
-        -c "SELECT * FROM migrations;"
+        -c "SELECT to_regclass('public.migrations');"
 )
 
-log "Migrations table output: ${RESULT}"
+if [[ "${MIGRATIONS_EXISTS}" == "migrations" ]]; then
+
+    MIGRATION_COUNT=$(
+        "${PSQL}" \
+            -h 127.0.0.1 \
+            -p "${POSTGRES_PORT}" \
+            -U postgres \
+            -d "${APP_DB_NAME}" \
+            -At \
+            -c "SELECT COUNT(*) FROM public.migrations;"
+    )
+
+    log "Migrations table exists. Migration records found: ${MIGRATION_COUNT}"
+
+else
+
+    warn "Migrations table does not exist in database ${APP_DB_NAME}. Migration verification skipped."
+
+fi
 
 ###############################################################################
 # Completion
