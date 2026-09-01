@@ -244,13 +244,12 @@ fi
 ###############################################################################
 
 run "Setting postgres admin password" \
-    "${PSQL}" \
-        -h 127.0.0.1 \
-        -d postgres \
-        -U postgres \
-        -p "${POSTGRES_PORT}" \
-        -v ON_ERROR_STOP=1 \
-        -c "ALTER USER postgres PASSWORD '${POSTGRES_ADMIN_PASSWORD}';"
+    runuser -u postgres -- \
+        "${PSQL}" \
+            -d postgres \
+            -p "${POSTGRES_PORT}" \
+            -v ON_ERROR_STOP=1 \
+            -c "ALTER USER postgres PASSWORD '${POSTGRES_ADMIN_PASSWORD}';"
 
 ###############################################################################
 # Updating pg_hba.conf
