@@ -239,7 +239,7 @@ run "Reloading systemd daemon" systemctl daemon-reload
 log "Waiting for PostgreSQL to become ready on port ${POSTGRES_PORT}..."
 
 for i in {1..30}; do
-    if "${PG_ISREADY}" -p "${POSTGRES_PORT}" >/dev/null 2>&1; then
+    if "${PG_ISREADY}" -h 127.0.0.1 -p "${POSTGRES_PORT}" >/dev/null 2>&1; then
         log "PostgreSQL is accepting connections on port ${POSTGRES_PORT}"
         break
     fi
