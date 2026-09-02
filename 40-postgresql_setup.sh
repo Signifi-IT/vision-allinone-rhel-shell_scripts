@@ -196,12 +196,14 @@ if [[ "${READY}" -ne 1 ]]; then
 fi
 
 ###############################################################################
-# Temporarily set local authentication to trust
+# Temporarily set PostgreSQL authentication to trust
 ###############################################################################
 
 backup_file_if_needed "${PG_HBA}"
 
-log "Temporarily setting local authentication to trust for all users"
+log "Temporarily setting PostgreSQL authentication to trust for password bootstrap"
+
+TEMP_TRUST_CHANGED=0
 
 if grep -qE '^[[:space:]]*local[[:space:]]+all[[:space:]]+all[[:space:]]+trust([[:space:]]|$)' "${PG_HBA}"; then
 
@@ -215,8 +217,32 @@ else
 
     echo "local   all   all   trust" >> "${PG_HBA}"
 
-    run "Restarting PostgreSQL to apply temporary trust authentication" systemctl restart postgresql-14
+    TEMP_TRUST_CHANGED=1
 
+fi
+
+if grep -qE '^[[:space:]]*host[[:space:]]+all[[:space:]]+postgres[[:space:]]+127\.0\.0\.1/32[[:space:]]+trust([[:space:]]|$)' "${PG_HBA}"; then
+
+    log "Temporary TCP trust authentication for postgres is already configured"
+
+else
+
+    sed -i \
+        "/^[[:space:]]*host[[:space:]]\+all[[:space:]]\+postgres[[:space:]]\+127\.0\.0\.1\/32[[:space:]]/d" \
+        "${PG_HBA}"
+
+    sed -i \
+        "1ihost    all    postgres    127.0.0.1/32    trust" \
+        "${PG_HBA}"
+
+    TEMP_TRUST_CHANGED=1
+
+fi
+
+if [[ "${TEMP_TRUST_CHANGED}" -eq 1 ]]; then
+    run "Restarting PostgreSQL to apply temporary trust authentication" systemctl restart postgresql-14
+else
+    log "Temporary trust authentication is already applied"
 fi
 
 run "Enabling PostgreSQL service" systemctl enable postgresql-14
@@ -244,12 +270,13 @@ fi
 ###############################################################################
 
 run "Setting postgres admin password" \
-    runuser -u postgres -- \
-        "${PSQL}" \
-            -d postgres \
-            -p "${POSTGRES_PORT}" \
-            -v ON_ERROR_STOP=1 \
-            -c "ALTER USER postgres PASSWORD '${POSTGRES_ADMIN_PASSWORD}';"
+    "${PSQL}" \
+        -h 127.0.0.1 \
+        -d postgres \
+        -U postgres \
+        -p "${POSTGRES_PORT}" \
+        -v ON_ERROR_STOP=1 \
+        -c "ALTER USER postgres PASSWORD '${POSTGRES_ADMIN_PASSWORD}';"
 
 ###############################################################################
 # Updating pg_hba.conf
@@ -258,6 +285,16 @@ run "Setting postgres admin password" \
 backup_file_if_needed "${PG_HBA}"
 
 log "Configuring pg_hba.conf authentication rules..."
+
+log "Removing temporary trust authentication rules"
+
+sed -i \
+    "/^[[:space:]]*local[[:space:]]\+all[[:space:]]\+all[[:space:]]\+trust[[:space:]]*$/d" \
+    "${PG_HBA}"
+
+sed -i \
+    "/^[[:space:]]*host[[:space:]]\+all[[:space:]]\+postgres[[:space:]]\+127\.0\.0\.1\/32[[:space:]]\+trust[[:space:]]*$/d" \
+    "${PG_HBA}"
 
 for user in "${DB_USER_AUTHENTICATION_HBA[@]}"; do
 
