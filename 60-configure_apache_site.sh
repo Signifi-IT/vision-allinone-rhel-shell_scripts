@@ -9,15 +9,16 @@
 #     - Validates required variables
 #     - Removes default Apache configuration files and unused modules
 #     - Configures mod_status
-#     - Configures Apache listener to listen on 127.0.0.1:7080 by updating Listen directives
+#     - Configures Apache listener to listen on 127.0.0.1:7080 when not already configured
 #     - Configures Apache security hardening directives
-#     - Configures global ServerName
+#     - Configures global ServerName when missing
 #     - Installs Jinja2 to render virtual host configuration
 #     - Generates Apache virtual host configuration from Jinja2 template
+#     - Deploys Apache virtual host configuration only when missing or changed
 #     - Removes Jinja2 after rendering virtual host configuration
-#     - Creates and configures application-specific Apache log directory
-#     - Comments default DocumentRoot in main Apache configuration
-#     - Configures SELinux HTTP port mapping for 7080
+#     - Creates and configures application-specific Apache log directory when missing
+#     - Comments default DocumentRoot in main Apache configuration when uncommented
+#     - Configures SELinux HTTP port mapping for 7080 when missing
 #     - Validates Apache configuration syntax
 #     - Enables and restarts Apache HTTPD service
 ###############################################################################
@@ -126,6 +127,15 @@ for var in "${REQUIRED_VARS[@]}"; do
 done
 
 ###############################################################################
+# Validate required arrays
+###############################################################################
+
+if [[ "${#ALLOWED_SERVER_STATUS_IPS[@]}" -eq 0 ]]; then
+    error "Required array 'ALLOWED_SERVER_STATUS_IPS' is not defined or is empty"
+    exit 1
+fi
+
+###############################################################################
 # Backup helper
 ###############################################################################
 
@@ -194,8 +204,16 @@ chown root:root "${STATUS_CONF}"
 
 backup_file_if_needed "${HTTPD_CONF}"
 
-run "Configure Apache port to listen on 7080" \
-    sed -ri 's|^[[:space:]]*Listen[[:space:]].*|Listen 127.0.0.1:7080|' "${HTTPD_CONF}"
+if grep -qE '^[[:space:]]*Listen[[:space:]]+127\.0\.0\.1:7080[[:space:]]*$' "${HTTPD_CONF}"; then
+
+    log "Apache listener already configured for 127.0.0.1:7080"
+
+else
+
+    run "Configure Apache port to listen on 7080" \
+        sed -ri 's|^[[:space:]]*Listen[[:space:]].*|Listen 127.0.0.1:7080|' "${HTTPD_CONF}"
+
+fi
 
 ###############################################################################
 # Apache security configuration
@@ -239,6 +257,8 @@ export PORTAL_URL
 ALLOWED_IPS="$(printf '%s\n' "${ALLOWED_SERVER_STATUS_IPS[@]}")"
 export ALLOWED_IPS
 
+TEMP_SITE_CONFIG="$(mktemp)"
+
 python3 <<EOF
 from jinja2 import Template
 
@@ -252,12 +272,26 @@ rendered = template.render(
 
 rendered = rendered.rstrip("\n") + "\n"
 
-with open("${SITE_CONFIG}", "w") as f:
+with open("${TEMP_SITE_CONFIG}", "w") as f:
     f.write(rendered)
 EOF
 
-chmod 0644 "${SITE_CONFIG}"
-chown root:root "${SITE_CONFIG}"
+if [[ -f "${SITE_CONFIG}" ]] && cmp -s "${TEMP_SITE_CONFIG}" "${SITE_CONFIG}"; then
+
+    log "Apache virtual host configuration already up to date: ${SITE_CONFIG}"
+    rm -f "${TEMP_SITE_CONFIG}"
+
+else
+
+    log "Deploying Apache virtual host configuration: ${SITE_CONFIG}"
+
+    cp -f "${TEMP_SITE_CONFIG}" "${SITE_CONFIG}"
+    rm -f "${TEMP_SITE_CONFIG}"
+
+    chmod 0644 "${SITE_CONFIG}"
+    chown root:root "${SITE_CONFIG}"
+
+fi
 
 ###############################################################################
 # Remove Jinja2
@@ -269,16 +303,34 @@ run "Removing python3-jinja2" dnf remove -y python3-jinja2
 # Apache log directory
 ###############################################################################
 
-run "Creating Apache log directory" mkdir -p "/var/log/httpd/${PORTAL_URL}"
-run "Setting Apache log directory ownership" chown root:root "/var/log/httpd/${PORTAL_URL}"
-run "Setting Apache log directory permissions" chmod 0755 "/var/log/httpd/${PORTAL_URL}"
+APACHE_LOG_DIR="/var/log/httpd/${PORTAL_URL}"
+
+if [[ -d "${APACHE_LOG_DIR}" ]]; then
+
+    log "Apache log directory already exists: ${APACHE_LOG_DIR}"
+
+else
+
+    run "Creating Apache log directory" mkdir -p "${APACHE_LOG_DIR}"
+    run "Setting Apache log directory ownership" chown root:root "${APACHE_LOG_DIR}"
+    run "Setting Apache log directory permissions" chmod 0755 "${APACHE_LOG_DIR}"
+
+fi
 
 ###############################################################################
 # Comment default DocumentRoot
 ###############################################################################
 
-run "Commenting the default Apache DocumentRoot" \
-    sed -ri 's|^(DocumentRoot[[:space:]]+"/var/www/html")|# \1|' "${HTTPD_CONF}"
+if grep -qE '^DocumentRoot[[:space:]]+"/var/www/html"' "${HTTPD_CONF}"; then
+
+    run "Commenting the default Apache DocumentRoot" \
+        sed -ri 's|^(DocumentRoot[[:space:]]+"/var/www/html")|# \1|' "${HTTPD_CONF}"
+
+else
+
+    log "Default Apache DocumentRoot is already commented"
+
+fi
 
 ###############################################################################
 # SELinux port
