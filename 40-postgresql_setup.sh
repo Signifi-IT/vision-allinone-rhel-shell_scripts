@@ -506,7 +506,7 @@ if [[ "${MIGRATIONS_EXISTS}" == "migrations" ]]; then
             -U postgres \
             -d "${APP_DB_NAME}" \
             -At \
-            -c "SELECT COUNT(*) FROM public.migrations;"
+            -c "SELECT * FROM migrations;"
     )
 
     log "Migrations table exists. Migration records found: ${MIGRATION_COUNT}"
