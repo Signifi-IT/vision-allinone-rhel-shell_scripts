@@ -7,17 +7,19 @@
 #     - Logs all operations to /var/log/vision_deployment.log
 #     - Loads configuration from answers.txt
 #     - Validates required variables
+#     - Validates required arrays
 #     - Validates required files
-#     - Temporarily sets local PostgreSQL authentication to trust before configuring the postgres password
+#     - Temporarily sets local and TCP PostgreSQL authentication to trust for password bootstrap
 #     - Sets PostgreSQL admin user (postgres) password
 #     - Backs up pg_hba.conf
-#     - Enforces SCRAM-SHA-256 authentication rules for local and network access and appending validated entries
+#     - Removes temporary trust authentication rules
+#     - Enforces SCRAM-SHA-256 authentication rules for local and network access
 #     - Restarts PostgreSQL after authentication changes
-#     - Creates application database user with password
-#     - Creates application database
+#     - Creates or updates application database user with password
+#     - Creates application database when missing
 #     - Grants required database privileges to application user
-#     - Restores application database from backup
-#     - Query migration table and logs results for verification
+#     - Restores application database from backup when migrations table does not exist
+#     - Queries migration table and logs results for verification
 ###############################################################################
 
 set -Eeuo pipefail
@@ -499,7 +501,7 @@ MIGRATIONS_EXISTS=$(
 
 if [[ "${MIGRATIONS_EXISTS}" == "migrations" ]]; then
 
-    MIGRATION_COUNT=$(
+    MIGRATION_OUTPUT=$(
         "${PSQL}" \
             -h 127.0.0.1 \
             -p "${POSTGRES_PORT}" \
@@ -509,7 +511,7 @@ if [[ "${MIGRATIONS_EXISTS}" == "migrations" ]]; then
             -c "SELECT * FROM migrations;"
     )
 
-    log "Migrations table exists. Migration records found: ${MIGRATION_COUNT}"
+    log "Migrations table exists. Migration records: ${MIGRATION_OUTPUT}"
 
 else
 
