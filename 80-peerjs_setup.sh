@@ -2,29 +2,34 @@
 
 ###############################################################################
 # Description:
-#   Deploys PeerJS real-time communication service and integrates it with HAProxy on RHEL-based systems:
+#   Deploys the PeerJS real-time communication service and integrates it with HAProxy on RHEL-based systems:
 #     - Requires root privileges
 #     - Logs all operations to /var/log/vision_deployment.log
 #     - Loads configuration from answers.txt
-#     - Validates required variables
-#     - Validates required files
+#     - Validates required variables and files
+#     - Detects whether the PeerJS application directory already exists
 #     - Cleans and rebuilds the DNF package metadata cache
 #     - Resets the Node.js module stream
 #     - Enables the Node.js 24 module stream
-#     - Installs Node.js from the enabled Node.js 24 module stream
-#     - Installs PM2 globally and configures it to start automatically with systemd
-#     - Configures Bitbucket SSH key for secure Git access
-#     - Clones PeerJS application repositories from its branch
-#     - Installs Node.js dependencies
-#     - Starts the PeerJS application with PM2 and persists the PM2 process list
+#     - Installs Node.js only when missing
+#     - Installs PM2 globally only when missing
+#     - Configures PM2 systemd startup for the root user
+#     - Configures Bitbucket SSH key permissions and ownership for secure Git access
+#     - Clones the PeerJS repository only when the PeerJS directory does not already exist
+#     - Installs PeerJS Node.js dependencies only during initial deployment
+#     - Sets PeerJS application ownership and permissions only during initial deployment
+#     - Starts or restarts the PeerJS application with PM2 only during initial deployment
+#     - Persists the PM2 process list only during initial deployment
 #     - Installs Jinja2 to render HAProxy backend configuration
-#     - Generates HAProxy configuration files from Jinja2 template
+#     - Renders the PeerJS HAProxy backend configuration from a Jinja2 template
+#     - Deploys the rendered PeerJS HAProxy backend configuration only when missing or changed
 #     - Removes Jinja2 after rendering HAProxy backend configuration
-#     - Installs HAProxy TLS certificate for PeerJS endpoint
-#     - Updates HAProxy host mapping file (hosts.map) with backend routing entries
-#     - Validates HAProxy configuration
-#     - Restarts and enables HAProxy service
-#     - Adds portal entry to /etc/hosts
+#     - Installs the PeerJS TLS certificate only when missing or changed
+#     - Escapes the PeerJS portal URL for safe regex-based file updates
+#     - Updates HAProxy hosts.map with the PeerJS backend routing entry
+#     - Validates the HAProxy configuration
+#     - Restarts and enables the HAProxy service
+#     - Adds or updates the PeerJS portal entry in /etc/hosts
 ###############################################################################
 
 set -Eeuo pipefail
@@ -157,38 +162,65 @@ for file in "${REQUIRED_FILES[@]}"; do
 done
 
 ###############################################################################
-# Install Nodejs 24
+# Detect existing PeerJS directory
+###############################################################################
+
+PEERJS_DIR_ALREADY_EXISTS=false
+
+if [[ -d "${PEERJS_DIR}" ]]; then
+    PEERJS_DIR_ALREADY_EXISTS=true
+fi
+
+###############################################################################
+# Refresh DNF metadata
 ###############################################################################
 
 run "Cleaning DNF cache" dnf clean all
 run "Rebuilding DNF package metadata cache" dnf makecache -y
 
-run "Resetting Node.js module" dnf module reset nodejs -y
+###############################################################################
+# Install Node.js 24
+###############################################################################
 
+run "Resetting Node.js module" dnf module reset nodejs -y
 run "Enabling Node.js 24 module stream" dnf module enable nodejs:24 -y
 
-run "Installing Node.js" dnf install -y --refresh nodejs
+if rpm -q nodejs >/dev/null 2>&1; then
+
+    log "Package already installed: nodejs"
+
+else
+
+    run "Installing Node.js" dnf install -y --refresh nodejs
+
+fi
 
 ###############################################################################
 # Install PM2
 ###############################################################################
 
-run "Installing PM2 globally" /usr/bin/npm install -g pm2
+if command -v /usr/local/bin/pm2 >/dev/null 2>&1; then
+
+    log "PM2 already installed: /usr/local/bin/pm2"
+
+else
+
+    run "Installing PM2 globally" /usr/bin/npm install -g pm2
+
+fi
 
 ###############################################################################
 # Configure PM2 startup
 ###############################################################################
 
-run "Configuring PM2 startup" /usr/local/bin/pm2 startup systemd -u root --hp /root
+run "Configuring PM2 systemd startup for root user" /usr/local/bin/pm2 startup systemd -u root --hp /root
 
 ###############################################################################
 # Configure Git SSH
 ###############################################################################
 
-log "Configuring Bitbucket SSH key permissions"
-
-chmod 0400 "${BITBUCKET_KEY}"
-chown root:root "${BITBUCKET_KEY}"
+run "Setting Bitbucket SSH key permissions" chmod 0400 "${BITBUCKET_KEY}"
+run "Setting Bitbucket SSH key ownership" chown root:root "${BITBUCKET_KEY}"
 
 export GIT_SSH_COMMAND="ssh -i ${BITBUCKET_KEY} -o StrictHostKeyChecking=accept-new"
 
@@ -196,21 +228,17 @@ export GIT_SSH_COMMAND="ssh -i ${BITBUCKET_KEY} -o StrictHostKeyChecking=accept-
 # Deploy PeerJS repository
 ###############################################################################
 
-clone_or_update_repo() {
+if [[ -d "${PEERJS_DIR}" ]]; then
 
-    local repo="$1"
-    local branch="$2"
-    local dest="$3"
+    log "PeerJS directory already exists, skipping repository deployment: ${PEERJS_DIR}"
 
-    if [[ -d "${dest}/.git" ]]; then
+else
 
-        run "Updating repository metadata" git -C "${dest}" fetch --all --prune --quiet
+    clone_repo() {
 
-        run "Checking out ${branch}" git -C "${dest}" checkout -q "${branch}"
-
-        run "Synchronizing repository" git -C "${dest}" reset --hard "origin/${branch}"
-
-    else
+        local repo="$1"
+        local branch="$2"
+        local dest="$3"
 
         run "Cloning repository into ${dest}" \
             git clone \
@@ -218,49 +246,75 @@ clone_or_update_repo() {
                 --branch "${branch}" \
                 "${repo}" \
                 "${dest}"
+    }
 
-    fi
-}
+    clone_repo \
+        "${PEERJS_REPO}" \
+        "${PEERJS_BRANCH}" \
+        "${PEERJS_DIR}"
 
-clone_or_update_repo \
-    "${PEERJS_REPO}" \
-    "${PEERJS_BRANCH}" \
-    "${PEERJS_DIR}"
+fi
 
 ###############################################################################
 # Install dependencies
 ###############################################################################
 
-run "Installing PeerJS dependencies" bash -c "cd '${PEERJS_DIR}' && /usr/bin/npm ci"
+if [[ "${PEERJS_DIR_ALREADY_EXISTS}" == "true" ]]; then
+
+    log "PeerJS directory already existed, skipping dependency installation: ${PEERJS_DIR}"
+
+else
+
+    run "Installing PeerJS dependencies" bash -c "cd '${PEERJS_DIR}' && /usr/bin/npm ci"
+
+fi
 
 ###############################################################################
 # Application permissions
 ###############################################################################
 
-run "Setting PeerJS application permissions" \
-    find "${PEERJS_DIR}" -type d -exec chmod 0755 {} + && \
-    find "${PEERJS_DIR}" -type f -exec chmod 0644 {} +
+if [[ "${PEERJS_DIR_ALREADY_EXISTS}" == "true" ]]; then
 
-run "Setting PeerJS application ownership" chown -R root:apache "${PEERJS_DIR}"
+    log "PeerJS directory already existed, skipping application permission changes: ${PEERJS_DIR}"
+
+else
+
+    run "Setting PeerJS application directory permissions" \
+        find "${PEERJS_DIR}" -type d -exec chmod 0755 {} +
+
+    run "Setting PeerJS application file permissions" \
+        find "${PEERJS_DIR}" -type f -exec chmod 0644 {} +
+
+    run "Setting PeerJS application ownership" chown -R root:apache "${PEERJS_DIR}"
+
+fi
 
 ###############################################################################
 # PM2 deployment
 ###############################################################################
 
-if /usr/local/bin/pm2 list | grep -q 'peerjs'; then
+if [[ "${PEERJS_DIR_ALREADY_EXISTS}" == "true" ]]; then
 
-    run "Restarting PeerJS PM2 application" \
-        bash -c "cd '${PEERJS_DIR}' && /usr/local/bin/pm2 restart peerjs"
+    log "PeerJS directory already existed, skipping PM2 deployment: ${PEERJS_DIR}"
 
 else
 
-    run "Starting PeerJS PM2 application" \
-        bash -c "cd '${PEERJS_DIR}' && /usr/local/bin/pm2 start app.js --name peerjs"
+    if /usr/local/bin/pm2 list | grep -q 'peerjs'; then
+
+        run "Restarting PeerJS PM2 application" \
+            bash -c "cd '${PEERJS_DIR}' && /usr/local/bin/pm2 restart peerjs"
+
+    else
+
+        run "Starting PeerJS PM2 application" \
+            bash -c "cd '${PEERJS_DIR}' && /usr/local/bin/pm2 start app.js --name peerjs"
+
+    fi
+
+    run "Persisting PM2 process list" \
+        bash -c "cd '${PEERJS_DIR}' && /usr/local/bin/pm2 save"
 
 fi
-
-run "Persisting PM2 process list" \
-    bash -c "cd '${PEERJS_DIR}' && /usr/local/bin/pm2 save"
 
 ###############################################################################
 # Install Jinja2
@@ -274,6 +328,8 @@ run "Installing python3-jinja2" dnf install -y --refresh python3-jinja2
 
 log "Rendering PeerJS backend configuration"
 
+TEMP_PEERJS_HAPROXY_CFG="$(mktemp)"
+
 python3 <<EOF
 from jinja2 import Template
 
@@ -286,12 +342,26 @@ rendered = template.render(
 
 rendered = rendered.rstrip("\n") + "\n"
 
-with open("${PEERJS_HAPROXY_CFG}", "w") as f:
+with open("${TEMP_PEERJS_HAPROXY_CFG}", "w") as f:
     f.write(rendered)
 EOF
 
-chmod 0644 "${PEERJS_HAPROXY_CFG}"
-chown root:root "${PEERJS_HAPROXY_CFG}"
+if [[ -f "${PEERJS_HAPROXY_CFG}" ]] && cmp -s "${TEMP_PEERJS_HAPROXY_CFG}" "${PEERJS_HAPROXY_CFG}"; then
+
+    log "PeerJS HAProxy backend configuration already up to date: ${PEERJS_HAPROXY_CFG}"
+    rm -f "${TEMP_PEERJS_HAPROXY_CFG}"
+
+else
+
+    log "Deploying PeerJS HAProxy backend configuration: ${PEERJS_HAPROXY_CFG}"
+
+    cp -f "${TEMP_PEERJS_HAPROXY_CFG}" "${PEERJS_HAPROXY_CFG}"
+    rm -f "${TEMP_PEERJS_HAPROXY_CFG}"
+
+fi
+
+run "Setting PeerJS HAProxy backend configuration permissions" chmod 0644 "${PEERJS_HAPROXY_CFG}"
+run "Setting PeerJS HAProxy backend configuration ownership" chown root:root "${PEERJS_HAPROXY_CFG}"
 
 ###############################################################################
 # Remove Jinja2
@@ -303,10 +373,24 @@ run "Removing python3-jinja2" dnf remove -y python3-jinja2
 # Install certificate
 ###############################################################################
 
-run "Installing PeerJS TLS certificate" cp -f "${CERT_PATH}" "${CERT_DEST}"
+if [[ -f "${CERT_DEST}" ]] && cmp -s "${CERT_PATH}" "${CERT_DEST}"; then
 
-chmod 0600 "${CERT_DEST}"
-chown root:root "${CERT_DEST}"
+    log "PeerJS TLS certificate already up to date: ${CERT_DEST}"
+
+else
+
+    run "Installing PeerJS TLS certificate" cp -f "${CERT_PATH}" "${CERT_DEST}"
+
+fi
+
+run "Setting PeerJS TLS certificate permissions" chmod 0600 "${CERT_DEST}"
+run "Setting PeerJS TLS certificate ownership" chown root:root "${CERT_DEST}"
+
+###############################################################################
+# Escape PeerJS portal URL for regex operations
+###############################################################################
+
+PEERJS_PORTAL_URL_REGEX="$(printf '%s\n' "${PEERJS_PORTAL_URL}" | sed 's/[][\/.^$*+?{}|()]/\\&/g')"
 
 ###############################################################################
 # Update hosts.map entry
@@ -314,10 +398,18 @@ chown root:root "${CERT_DEST}"
 
 BACKEND_NAME="${PEERJS_PORTAL_URL//[-.]/_}_backend"
 
-log "Adding ${PEERJS_PORTAL_URL} to HAProxy backend map as ${BACKEND_NAME}"
+log "Ensuring ${PEERJS_PORTAL_URL} is mapped to ${BACKEND_NAME} in HAProxy backend map"
 
-grep -q "${PEERJS_PORTAL_URL}" "${HAPROXY_MAP_FILE}" || \
+if grep -qE "^${PEERJS_PORTAL_URL_REGEX}[[:space:]]+${BACKEND_NAME}$" "${HAPROXY_MAP_FILE}"; then
+
+    log "HAProxy backend map entry already exists: ${PEERJS_PORTAL_URL} ${BACKEND_NAME}"
+
+else
+
+    sed -i "\|^${PEERJS_PORTAL_URL_REGEX}[[:space:]]|d" "${HAPROXY_MAP_FILE}"
     echo "${PEERJS_PORTAL_URL} ${BACKEND_NAME}" >> "${HAPROXY_MAP_FILE}"
+
+fi
 
 ###############################################################################
 # Validate HAProxy
@@ -338,10 +430,18 @@ run "Enabling HAProxy" systemctl enable --now haproxy
 
 SYSTEM_IP="$(hostname -I | awk '{print $1}')"
 
-log "Adding PeerJS Portal host entry to /etc/hosts"
+log "Ensuring PeerJS Portal host entry exists in /etc/hosts"
 
-grep -qE "^[[:space:]]*${SYSTEM_IP}[[:space:]]+${PEERJS_PORTAL_URL}$" /etc/hosts || \
+if grep -qE "^[[:space:]]*${SYSTEM_IP}[[:space:]]+${PEERJS_PORTAL_URL_REGEX}$" /etc/hosts; then
+
+    log "/etc/hosts entry already exists: ${SYSTEM_IP} ${PEERJS_PORTAL_URL}"
+
+else
+
+    sed -i "\|[[:space:]]${PEERJS_PORTAL_URL_REGEX}$|d" /etc/hosts
     echo "${SYSTEM_IP} ${PEERJS_PORTAL_URL}" >> /etc/hosts
+
+fi
 
 ###############################################################################
 # Completion
