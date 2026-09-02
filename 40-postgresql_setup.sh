@@ -469,6 +469,7 @@ else
 
     if ! run "Restoring database backup" \
         "${PG_RESTORE}" \
+            -h 127.0.0.1 \
             -p "${POSTGRES_PORT}" \
             --username postgres \
             --dbname "${APP_DB_NAME}" \
@@ -479,7 +480,6 @@ else
     fi
 
 fi
-
 
 ###############################################################################
 # Migration verification
