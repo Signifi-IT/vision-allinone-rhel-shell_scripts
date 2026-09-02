@@ -334,9 +334,9 @@ READY=0
 
 for i in {1..30}; do
     if "${PG_ISREADY}" -h 127.0.0.1 -p "${POSTGRES_PORT}" >/dev/null 2>&1; then
-    READY=1
-    log "PostgreSQL is ready after restart"
-    break
+        READY=1
+        log "PostgreSQL is ready after restart"
+        break
     fi
     sleep 1
 done
