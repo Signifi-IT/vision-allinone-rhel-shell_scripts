@@ -133,12 +133,18 @@ backup_file_if_needed() {
     local file="$1"
     local backup="${file}.bak"
 
-    if [[ -f "${file}" ]] && [[ ! -f "${backup}" ]]; then
-        log "Creating backup: ${backup}"
-        cp -p "${file}" "${backup}"
-    else
-        log "Backup already exists: ${backup}"
+    if [[ ! -f "${file}" ]]; then
+        warn "File does not exist, backup skipped: ${file}"
+        return 0
     fi
+
+    if [[ -f "${backup}" ]]; then
+        log "Backup already exists: ${backup}"
+        return 0
+    fi
+
+    log "Creating backup: ${backup}"
+    cp -p "${file}" "${backup}"
 }
 
 ###############################################################################

@@ -8,12 +8,12 @@
 #     - Loads configuration from answers.txt
 #     - Validates required variables
 #     - Validates required files
-#     - Creates application directory structure under /var/www
+#     - Creates application directory structure under /var/www when missing
 #     - Configures Bitbucket SSH key for secure Git access
-#     - Clones application, media, API, and mobile repositories from their branches
-#     - Deploys media, API, and mobile assets into application directory structure
-#     - Creates required application session directories
-#     - Removes temporary repository working directories
+#     - Clones application, media, API, and mobile repositories when application directory is missing
+#     - Deploys media, API, and mobile assets into application directory structure on initial deployment
+#     - Creates required application session directories on initial deployment
+#     - Removes temporary repository working directories after initial deployment
 #     - Backs up and deploys PHP configuration files (php.ini, www.conf)
 #     - Validates PHP-FPM configuration
 #     - Enables and restarts PHP-FPM service
@@ -152,12 +152,18 @@ backup_file_if_needed() {
     local file="$1"
     local backup="${file}.bak"
 
-    if [[ -f "${file}" ]] && [[ ! -f "${backup}" ]]; then
-        log "Creating backup: ${backup}"
-        cp -p "${file}" "${backup}"
-    else
-        log "Backup already exists: ${backup}"
+    if [[ ! -f "${file}" ]]; then
+        warn "File does not exist, backup skipped: ${file}"
+        return 0
     fi
+
+    if [[ -f "${backup}" ]]; then
+        log "Backup already exists: ${backup}"
+        return 0
+    fi
+
+    log "Creating backup: ${backup}"
+    cp -p "${file}" "${backup}"
 }
 
 ###############################################################################
