@@ -14,7 +14,7 @@
 #     - Deploys media, API, and mobile assets into application directory structure
 #     - Creates required application session directories
 #     - Removes temporary repository working directories
-#     - Backs up and deploy PHP configuration files (php.ini, www.conf)
+#     - Backs up and deploys PHP configuration files (php.ini, www.conf)
 #     - Validates PHP-FPM configuration
 #     - Enables and restarts PHP-FPM service
 ###############################################################################
@@ -164,11 +164,22 @@ backup_file_if_needed() {
 # Application directory
 ###############################################################################
 
-log "Creating application portal directory"
+APP_DIR_ALREADY_EXISTS=0
 
-mkdir -p "${APP_DIR}"
-chmod 0755 "${APP_DIR}"
-chown -R root:apache "${APP_DIR}"
+if [[ -d "${APP_DIR}" ]]; then
+
+    APP_DIR_ALREADY_EXISTS=1
+    log "Application portal directory already exists: ${APP_DIR}"
+
+else
+
+    log "Creating application portal directory: ${APP_DIR}"
+
+    mkdir -p "${APP_DIR}"
+    chmod 0755 "${APP_DIR}"
+    chown root:apache "${APP_DIR}"
+
+fi
 
 ###############################################################################
 # Git SSH configuration
@@ -185,21 +196,17 @@ export GIT_SSH_COMMAND="ssh -i ${BITBUCKET_KEY} -o StrictHostKeyChecking=accept-
 # Repository deployment
 ###############################################################################
 
-clone_or_update_repo() {
+if [[ "${APP_DIR_ALREADY_EXISTS}" -eq 1 ]]; then
 
-    local repo="$1"
-    local branch="$2"
-    local dest="$3"
+    log "Application portal directory already exists. Skipping repository deployment."
 
-    if [[ -d "${dest}/.git" ]]; then
+else
 
-        run "Updating repository metadata" git -C "${dest}" fetch --all --prune --quiet
+    clone_repo() {
 
-        run "Checking out ${branch}" git -C "${dest}" checkout -q "${branch}"
-
-        run "Synchronizing repository" git -C "${dest}" reset --hard "origin/${branch}"
-
-    else
+        local repo="$1"
+        local branch="$2"
+        local dest="$3"
 
         run "Cloning repository into: ${dest}" \
             git clone \
@@ -208,48 +215,57 @@ clone_or_update_repo() {
                 "${repo}" \
                 "${dest}"
 
-    fi
-}
+    }
 
-clone_or_update_repo \
-    "${APP_URL}" \
-    "${APP_BRANCH}" \
-    "/var/www/${PORTAL_URL}"
+    clone_repo \
+        "${APP_URL}" \
+        "${APP_BRANCH}" \
+        "/var/www/${PORTAL_URL}"
 
-clone_or_update_repo \
-    "${APP_MEDIA_URL}" \
-    "${APP_MEDIA_BRANCH}" \
-    "/var/www/${PORTAL_URL}_media"
+    clone_repo \
+        "${APP_MEDIA_URL}" \
+        "${APP_MEDIA_BRANCH}" \
+        "/var/www/${PORTAL_URL}_media"
 
-clone_or_update_repo \
-    "${APP_API_URL}" \
-    "${APP_API_BRANCH}" \
-    "/var/www/${PORTAL_URL}_api"
+    clone_repo \
+        "${APP_API_URL}" \
+        "${APP_API_BRANCH}" \
+        "/var/www/${PORTAL_URL}_api"
 
-clone_or_update_repo \
-    "${APP_MOBILE_URL}" \
-    "${APP_MOBILE_BRANCH}" \
-    "/var/www/${PORTAL_URL}_mobile"
+    clone_repo \
+        "${APP_MOBILE_URL}" \
+        "${APP_MOBILE_BRANCH}" \
+        "/var/www/${PORTAL_URL}_mobile"
+
+fi
 
 ###############################################################################
 # Deploy media, API and mobile content
 ###############################################################################
 
-for component in media api mobile; do
+if [[ "${APP_DIR_ALREADY_EXISTS}" -eq 1 ]]; then
 
-    SOURCE="/var/www/${PORTAL_URL}_${component}"
-    DEST="/var/www/${PORTAL_URL}/${component}"
+    log "Application portal directory already exists. Skipping media, API and mobile content deployment."
 
-    log "Deploying ${component} content"
+else
 
-    mkdir -p "${DEST}"
+    for component in media api mobile; do
 
-    cp -a "${SOURCE}/." "${DEST}/"
+        SOURCE="/var/www/${PORTAL_URL}_${component}"
+        DEST="/var/www/${PORTAL_URL}/${component}"
 
-    chmod 0755 "${DEST}"
-    chown -R root:apache "${DEST}"
+        log "Deploying ${component} content"
 
-done
+        mkdir -p "${DEST}"
+
+        cp -a "${SOURCE}/." "${DEST}/"
+
+        chmod 0755 "${DEST}"
+        chown -R root:apache "${DEST}"
+
+    done
+
+fi
 
 ###############################################################################
 # Application sessions directory
@@ -257,26 +273,42 @@ done
 
 SESSION_DIR="/var/www/${PORTAL_URL}/api/application/sessions"
 
-log "Creating application session directory"
+if [[ "${APP_DIR_ALREADY_EXISTS}" -eq 1 ]]; then
 
-mkdir -p "${SESSION_DIR}"
-chmod 0755 "${SESSION_DIR}"
-chown -R root:apache "${SESSION_DIR}"
+    log "Application portal directory already exists. Skipping application session directory creation."
+
+else
+
+    log "Creating application session directory: ${SESSION_DIR}"
+
+    mkdir -p "${SESSION_DIR}"
+    chmod 0755 "${SESSION_DIR}"
+    chown root:apache "${SESSION_DIR}"
+
+fi
 
 ###############################################################################
 # Remove temporary repository directories
 ###############################################################################
 
-for component in media api mobile; do
+if [[ "${APP_DIR_ALREADY_EXISTS}" -eq 1 ]]; then
 
-    TEMP_DIR="/var/www/${PORTAL_URL}_${component}"
+    log "Application portal directory already exists. Skipping temporary repository cleanup."
 
-    if [[ -d "${TEMP_DIR}" ]]; then
-        log "Removing temporary directory ${TEMP_DIR}"
-        rm -rf "${TEMP_DIR}"
-    fi
+else
 
-done
+    for component in media api mobile; do
+
+        TEMP_DIR="/var/www/${PORTAL_URL}_${component}"
+
+        if [[ -d "${TEMP_DIR}" ]]; then
+            log "Removing temporary directory ${TEMP_DIR}"
+            rm -rf "${TEMP_DIR}"
+        fi
+
+    done
+
+fi
 
 ###############################################################################
 # Deploy and Validate PHP configuration
@@ -291,7 +323,7 @@ run "Deploying www.conf" cp -f "${PHP_WWW_CONF_SOURCE}" "${PHP_WWW_CONF_DEST}"
 chmod 0644 "${PHP_INI_DEST}" "${PHP_WWW_CONF_DEST}"
 chown root:root "${PHP_INI_DEST}" "${PHP_WWW_CONF_DEST}"
 
-run "Validating PHP-FPM configuration" php-fpm -t -c %s
+run "Validating PHP-FPM configuration" php-fpm -t
 
 ###############################################################################
 # Restart PHP-FPM
