@@ -2,20 +2,24 @@
 
 ###############################################################################
 # Description:
-#   Configures SELinux contexts and filesystem permissions for writable
-#   application directories on RHEL-based systems:
+#   Configures SELinux contexts and filesystem permissions for application
+#   directories on RHEL-based systems:
 #     - Requires root privileges
 #     - Logs all operations to /var/log/vision_deployment.log
 #     - Requires --answer-file argument to load the desired answer file
 #     - Supports running against different portal answer files
 #     - Loads configuration from the provided answer file
 #     - Validates required variables
-#     - Configures recursive application ownership and permission settings
-#     - Configures SELinux file contexts for the application sessions directory
-#     - Configures SELinux file contexts for the application media directory
+#     - Validates required application directories
+#     - Sets application directory permissions recursively to 0755
+#     - Sets application file permissions recursively to 0644
+#     - Sets recursive application ownership to root:apache
+#     - Configures SELinux file context rules for the application sessions directory
+#     - Configures SELinux file context rules for the application media directory
+#     - Adds or updates SELinux file context rules as needed
 #     - Applies SELinux contexts recursively using restorecon
-#     - Sets writable permissions on the application media directory
-#     - Sets writable permissions on the application sessions directory
+#     - Sets writable permissions on the primary application media directory
+#     - Sets writable permissions on the primary application sessions directory
 ###############################################################################
 
 set -Eeuo pipefail
@@ -189,8 +193,10 @@ done
 # Application permissions
 ###############################################################################
 
-run "Setting application permissions" \
-    find "${APP_DIR}" -type d -exec chmod 0755 {} + && \
+run "Setting application directory permissions" \
+    find "${APP_DIR}" -type d -exec chmod 0755 {} +
+
+run "Setting application file permissions" \
     find "${APP_DIR}" -type f -exec chmod 0644 {} +
 
 run "Setting application ownership" chown -R root:apache "${APP_DIR}"
@@ -200,10 +206,10 @@ run "Setting application ownership" chown -R root:apache "${APP_DIR}"
 ###############################################################################
 
 run "Configuring SELinux context for sessions directory" \
-    semanage fcontext -a -t httpd_sys_rw_content_t "${SESSIONS_DIR}(/.*)?"
+    bash -c "semanage fcontext -a -t httpd_sys_rw_content_t '${SESSIONS_DIR}(/.*)?' 2>/dev/null || semanage fcontext -m -t httpd_sys_rw_content_t '${SESSIONS_DIR}(/.*)?'"
 
 run "Configuring SELinux context for media directory" \
-    semanage fcontext -a -t httpd_sys_rw_content_t "${MEDIA_DIR}(/.*)?"
+    bash -c "semanage fcontext -a -t httpd_sys_rw_content_t '${MEDIA_DIR}(/.*)?' 2>/dev/null || semanage fcontext -m -t httpd_sys_rw_content_t '${MEDIA_DIR}(/.*)?'"
 
 ###############################################################################
 # Apply SELinux contexts
