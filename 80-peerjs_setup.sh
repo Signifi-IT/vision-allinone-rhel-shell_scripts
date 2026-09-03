@@ -6,8 +6,8 @@
 #     - Requires root privileges
 #     - Logs all operations to /var/log/vision_deployment.log
 #     - Loads configuration from answers.txt
-#     - Validates required variables and files
-#     - Detects whether the PeerJS application directory already exists
+#     - Validates required user-provided variables and files
+#     - Detects whether the PeerJS application directory already exists before cloning
 #     - Cleans and rebuilds the DNF package metadata cache
 #     - Resets the Node.js module stream
 #     - Enables the Node.js 24 module stream
@@ -17,9 +17,12 @@
 #     - Configures Bitbucket SSH key permissions and ownership for secure Git access
 #     - Clones the PeerJS repository only when the PeerJS directory does not already exist
 #     - Installs PeerJS Node.js dependencies only during initial deployment
-#     - Sets PeerJS application ownership and permissions only during initial deployment
-#     - Starts or restarts the PeerJS application with PM2 only during initial deployment
-#     - Persists the PM2 process list only during initial deployment
+#     - Sets PeerJS application ownership and permissions
+#     - Restores executable permissions for the PeerJS CLI entrypoint
+#     - Starts or restarts the PeerJS application with PM2
+#     - Persists the PM2 process list
+#     - Validates that PeerJS is listening on TCP/9000
+#     - Ensures required HAProxy directories and hosts.map exist
 #     - Installs Jinja2 to render HAProxy backend configuration
 #     - Renders the PeerJS HAProxy backend configuration from a Jinja2 template
 #     - Deploys the rendered PeerJS HAProxy backend configuration only when missing or changed
@@ -28,7 +31,7 @@
 #     - Escapes the PeerJS portal URL for safe regex-based file updates
 #     - Updates HAProxy hosts.map with the PeerJS backend routing entry
 #     - Validates the HAProxy configuration
-#     - Restarts and enables the HAProxy service
+#     - Enables and restarts the HAProxy service
 #     - Adds or updates the PeerJS portal entry in /etc/hosts
 ###############################################################################
 
@@ -273,50 +276,49 @@ fi
 # Application permissions
 ###############################################################################
 
-if [[ "${PEERJS_DIR_ALREADY_EXISTS}" == "true" ]]; then
+run "Setting PeerJS application ownership" chown -R root:apache "${PEERJS_DIR}"
 
-    log "PeerJS directory already existed, skipping application permission changes: ${PEERJS_DIR}"
+run "Setting PeerJS application directory permissions" \
+    find "${PEERJS_DIR}" -type d -exec chmod 0755 {} +
 
+run "Setting PeerJS application file permissions" \
+    find "${PEERJS_DIR}" -type f -exec chmod 0644 {} +
+
+if [[ -f "${PEERJS_DIR}/bin/peerjs" ]]; then
+    run "Setting PeerJS executable permissions" chmod 0755 "${PEERJS_DIR}/bin/peerjs"
 else
-
-    run "Setting PeerJS application directory permissions" \
-        find "${PEERJS_DIR}" -type d -exec chmod 0755 {} +
-
-    run "Setting PeerJS application file permissions" \
-        find "${PEERJS_DIR}" -type f -exec chmod 0644 {} +
-
-    run "Setting PeerJS executable permissions" \
-        chmod 0755 "${PEERJS_DIR}/bin/peerjs"
-
-    run "Setting PeerJS application ownership" chown -R root:apache "${PEERJS_DIR}"
-
+    error "PeerJS executable not found: ${PEERJS_DIR}/bin/peerjs"
+    exit 1
 fi
-
 ###############################################################################
 # PM2 deployment
 ###############################################################################
 
-if [[ "${PEERJS_DIR_ALREADY_EXISTS}" == "true" ]]; then
-
-    log "PeerJS directory already existed, skipping PM2 deployment: ${PEERJS_DIR}"
-
+if /usr/local/bin/pm2 describe peerjs >/dev/null 2>&1; then
+    run "Restarting PeerJS PM2 application" \
+        bash -c "cd '${PEERJS_DIR}' && /usr/local/bin/pm2 restart peerjs"
 else
+    run "Starting PeerJS PM2 application" \
+        bash -c "cd '${PEERJS_DIR}' && /usr/local/bin/pm2 start app.js --name peerjs"
+fi
 
-    if /usr/local/bin/pm2 list | grep -q 'peerjs'; then
+run "Persisting PM2 process list" \
+    bash -c "cd '${PEERJS_DIR}' && /usr/local/bin/pm2 save"
 
-        run "Restarting PeerJS PM2 application" \
-            bash -c "cd '${PEERJS_DIR}' && /usr/local/bin/pm2 restart peerjs"
+###############################################################################
+# Validate PeerJS listener
+###############################################################################
 
-    else
+log "Validating PeerJS listener on TCP/9000"
 
-        run "Starting PeerJS PM2 application" \
-            bash -c "cd '${PEERJS_DIR}' && /usr/local/bin/pm2 start app.js --name peerjs"
+sleep 3
 
-    fi
-
-    run "Persisting PM2 process list" \
-        bash -c "cd '${PEERJS_DIR}' && /usr/local/bin/pm2 save"
-
+if ss -tulpn | grep -qE '(^|[[:space:]])(\*|0\.0\.0\.0|127\.0\.0\.1|\[::\]|::):9000[[:space:]]'; then
+    log "PeerJS is listening on TCP/9000"
+else
+    /usr/local/bin/pm2 logs peerjs --lines 50 --nostream || true
+    error "PeerJS is not listening on TCP/9000"
+    exit 1
 fi
 
 ###############################################################################
@@ -334,6 +336,10 @@ run "Setting HAProxy certificate directory ownership" chown root:root "${HAPROXY
 run "Setting HAProxy configuration directory permissions" chmod 0755 "${HAPROXY_CONF_DIR}"
 run "Setting HAProxy map directory permissions" chmod 0755 "${HAPROXY_MAP_DIR}"
 run "Setting HAProxy certificate directory permissions" chmod 0750 "${HAPROXY_CERT_DIR}"
+
+run "Creating HAProxy hosts map file" touch "${HAPROXY_MAP_FILE}"
+run "Setting HAProxy hosts map ownership" chown root:root "${HAPROXY_MAP_FILE}"
+run "Setting HAProxy hosts map permissions" chmod 0644 "${HAPROXY_MAP_FILE}"
 
 ###############################################################################
 # Install Jinja2
@@ -440,8 +446,8 @@ run "Validating HAProxy configuration" haproxy -c -f "${HAPROXY_CFG}" -f "${HAPR
 # Restart HAProxy
 ###############################################################################
 
-run "Stopping HAProxy" systemctl stop haproxy
-run "Enabling HAProxy" systemctl enable --now haproxy
+run "Enabling HAProxy" systemctl enable haproxy
+run "Restarting HAProxy" systemctl restart haproxy
 
 ###############################################################################
 # Update /etc/hosts entry
