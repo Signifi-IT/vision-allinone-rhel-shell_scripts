@@ -285,6 +285,9 @@ else
     run "Setting PeerJS application file permissions" \
         find "${PEERJS_DIR}" -type f -exec chmod 0644 {} +
 
+    run "Setting PeerJS executable permissions" \
+        chmod 0755 "${PEERJS_DIR}/bin/peerjs"
+
     run "Setting PeerJS application ownership" chown -R root:apache "${PEERJS_DIR}"
 
 fi
