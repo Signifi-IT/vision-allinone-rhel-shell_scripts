@@ -317,6 +317,22 @@ else
 fi
 
 ###############################################################################
+# Ensure HAProxy directories exist
+###############################################################################
+
+run "Creating HAProxy configuration directory" mkdir -p "${HAPROXY_CONF_DIR}"
+run "Creating HAProxy map directory" mkdir -p "${HAPROXY_MAP_DIR}"
+run "Creating HAProxy certificate directory" mkdir -p "${HAPROXY_CERT_DIR}"
+
+run "Setting HAProxy configuration directory ownership" chown root:root "${HAPROXY_CONF_DIR}"
+run "Setting HAProxy map directory ownership" chown root:root "${HAPROXY_MAP_DIR}"
+run "Setting HAProxy certificate directory ownership" chown root:root "${HAPROXY_CERT_DIR}"
+
+run "Setting HAProxy configuration directory permissions" chmod 0755 "${HAPROXY_CONF_DIR}"
+run "Setting HAProxy map directory permissions" chmod 0755 "${HAPROXY_MAP_DIR}"
+run "Setting HAProxy certificate directory permissions" chmod 0750 "${HAPROXY_CERT_DIR}"
+
+###############################################################################
 # Install Jinja2
 ###############################################################################
 
