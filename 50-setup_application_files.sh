@@ -191,10 +191,8 @@ fi
 # Git SSH configuration
 ###############################################################################
 
-log "Configuring Bitbucket SSH key permissions"
-
-chmod 0400 "${BITBUCKET_KEY}"
-chown root:root "${BITBUCKET_KEY}"
+run "Setting Bitbucket SSH key permissions" chmod 0400 "${BITBUCKET_KEY}"
+run "Setting Bitbucket SSH key ownership" chown root:root "${BITBUCKET_KEY}"
 
 export GIT_SSH_COMMAND="ssh -i ${BITBUCKET_KEY} -o StrictHostKeyChecking=accept-new"
 

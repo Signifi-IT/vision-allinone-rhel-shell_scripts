@@ -216,7 +216,16 @@ fi
 # Configure PM2 startup
 ###############################################################################
 
-run "Configuring PM2 systemd startup for root user" /usr/local/bin/pm2 startup systemd -u root --hp /root
+if systemctl list-unit-files | awk '{print $1}' | grep -qx 'pm2-root.service'; then
+
+    log "PM2 systemd startup service already exists: pm2-root.service"
+
+else
+
+    run "Configuring PM2 systemd startup for root user" \
+        /usr/local/bin/pm2 startup systemd -u root --hp /root
+
+fi
 
 ###############################################################################
 # Configure Git SSH
@@ -320,26 +329,6 @@ else
     error "PeerJS is not listening on TCP/9000"
     exit 1
 fi
-
-###############################################################################
-# Ensure HAProxy directories exist
-###############################################################################
-
-run "Creating HAProxy configuration directory" mkdir -p "${HAPROXY_CONF_DIR}"
-run "Creating HAProxy map directory" mkdir -p "${HAPROXY_MAP_DIR}"
-run "Creating HAProxy certificate directory" mkdir -p "${HAPROXY_CERT_DIR}"
-
-run "Setting HAProxy configuration directory ownership" chown root:root "${HAPROXY_CONF_DIR}"
-run "Setting HAProxy map directory ownership" chown root:root "${HAPROXY_MAP_DIR}"
-run "Setting HAProxy certificate directory ownership" chown root:root "${HAPROXY_CERT_DIR}"
-
-run "Setting HAProxy configuration directory permissions" chmod 0755 "${HAPROXY_CONF_DIR}"
-run "Setting HAProxy map directory permissions" chmod 0755 "${HAPROXY_MAP_DIR}"
-run "Setting HAProxy certificate directory permissions" chmod 0750 "${HAPROXY_CERT_DIR}"
-
-run "Creating HAProxy hosts map file" touch "${HAPROXY_MAP_FILE}"
-run "Setting HAProxy hosts map ownership" chown root:root "${HAPROXY_MAP_FILE}"
-run "Setting HAProxy hosts map permissions" chmod 0644 "${HAPROXY_MAP_FILE}"
 
 ###############################################################################
 # Install Jinja2
