@@ -399,7 +399,16 @@ for bool in "${SEBOOLS[@]}"; do
         run "Enabling SELinux boolean runtime state: ${bool}" setsebool "${bool}" on
     fi
 
-    if semanage boolean -l | grep -qE "^${bool}[[:space:]]+\(on[[:space:]]*,[[:space:]]*on\)"; then
+    CURRENT_PERSISTENT_STATE="$(
+        semanage boolean -l | awk -v bool="${bool}" '
+            $1 == bool {
+                gsub(/[(),]/, "", $2)
+                print $2
+            }
+        '
+    )"
+
+    if [[ "${CURRENT_PERSISTENT_STATE}" == "on" ]]; then
         log "SELinux boolean persistent state already enabled: ${bool}"
     else
         run "Enabling SELinux boolean persistent state: ${bool}" setsebool -P "${bool}" on
