@@ -104,6 +104,7 @@ PHP_INI_DEST="/etc/php.ini"
 PHP_WWW_CONF_DEST="/etc/php-fpm.d/www.conf"
 
 APP_DIR="/var/www/${PORTAL_URL}"
+SESSIONS_DIR="/var/www/${PORTAL_URL}/api/application/sessions"
 
 ###############################################################################
 # Validate required variables
@@ -218,13 +219,12 @@ else
                 --branch "${branch}" \
                 "${repo}" \
                 "${dest}"
-
     }
 
     clone_repo \
         "${APP_URL}" \
         "${APP_BRANCH}" \
-        "/var/www/${PORTAL_URL}"
+        "${APP_DIR}"
 
     clone_repo \
         "${APP_MEDIA_URL}" \
@@ -256,7 +256,7 @@ else
     for component in media api mobile; do
 
         SOURCE="/var/www/${PORTAL_URL}_${component}"
-        DEST="/var/www/${PORTAL_URL}/${component}"
+        DEST="${APP_DIR}/${component}"
 
         log "Deploying ${component} content"
 
@@ -275,19 +275,17 @@ fi
 # Application sessions directory
 ###############################################################################
 
-SESSION_DIR="/var/www/${PORTAL_URL}/api/application/sessions"
-
 if [[ "${APP_DIR_ALREADY_EXISTS}" -eq 1 ]]; then
 
     log "Application portal directory already exists. Skipping application session directory creation."
 
 else
 
-    log "Creating application session directory: ${SESSION_DIR}"
+    log "Creating application session directory: ${SESSIONS_DIR}"
 
-    mkdir -p "${SESSION_DIR}"
-    chmod 0755 "${SESSION_DIR}"
-    chown root:apache "${SESSION_DIR}"
+    mkdir -p "${SESSIONS_DIR}"
+    chmod 0755 "${SESSIONS_DIR}"
+    chown root:apache "${SESSIONS_DIR}"
 
 fi
 

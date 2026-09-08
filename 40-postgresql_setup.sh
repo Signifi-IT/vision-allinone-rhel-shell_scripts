@@ -17,6 +17,7 @@
 #     - Restarts PostgreSQL after authentication changes
 #     - Creates or updates application database user with password
 #     - Creates application database when missing
+#     - Grants SUPERUSER privilege to the application database user
 #     - Grants required database privileges to application user
 #     - Restores application database from backup when migrations table does not exist
 #     - Queries migration table and logs results for verification
@@ -401,6 +402,7 @@ DB_EXISTS=$(
         -U postgres \
         -d postgres \
         -At \
+        -v ON_ERROR_STOP=1 \
         -c "SELECT 1 FROM pg_database WHERE datname='${APP_DB_NAME}';"
 )
 
@@ -412,6 +414,7 @@ if [[ "${DB_EXISTS}" != "1" ]]; then
             -p "${POSTGRES_PORT}" \
             -U postgres \
             -d postgres \
+            -v ON_ERROR_STOP=1 \
             -c "CREATE DATABASE \"${APP_DB_NAME}\" OWNER \"${APP_DB_USER}\" ENCODING 'UTF8';"
 
 else
@@ -447,6 +450,7 @@ run "Granting database privileges to ${APP_DB_USER}" \
         -p "${POSTGRES_PORT}" \
         -U postgres \
         -d postgres \
+        -v ON_ERROR_STOP=1 \
         -c "GRANT ALL PRIVILEGES ON DATABASE \"${APP_DB_NAME}\" TO \"${APP_DB_USER}\";"
 
 ###############################################################################

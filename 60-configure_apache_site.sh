@@ -7,7 +7,7 @@
 #     - Logs all operations to /var/log/vision_deployment.log
 #     - Loads configuration from answers.txt
 #     - Validates required variables
-#     - Removes default Apache configuration files and unused modules
+#     - Removes default Apache configuration files
 #     - Configures mod_status
 #     - Configures Apache listener to listen on 127.0.0.1:7080 when not already configured
 #     - Configures Apache security hardening directives
@@ -46,8 +46,6 @@ error() {
     echo "[ERROR] $(date '+%Y-%m-%d %H:%M:%S') - $*" >&2
 }
 
-trap 'error "Script failed at line ${LINENO}: ${BASH_COMMAND}"' ERR
-
 ###############################################################################
 # Root check
 ###############################################################################
@@ -79,6 +77,21 @@ run() {
 }
 
 ###############################################################################
+# Cleanup
+###############################################################################
+
+TEMP_SITE_CONFIG=""
+
+cleanup() {
+    if [[ -n "${TEMP_SITE_CONFIG:-}" && -f "${TEMP_SITE_CONFIG}" ]]; then
+        rm -f "${TEMP_SITE_CONFIG}"
+    fi
+}
+
+trap cleanup EXIT
+trap 'error "Script failed at line ${LINENO}: ${BASH_COMMAND}"' ERR
+
+###############################################################################
 # Load configuration
 ###############################################################################
 
@@ -104,7 +117,9 @@ fi
 APP_DIR="/var/www/${PORTAL_URL}"
 
 TEMPLATE_FILE="${SCRIPT_DIR}/templates/site_template.j2"
+
 SITE_CONFIG="/etc/httpd/conf.d/${PORTAL_URL}.conf"
+APACHE_LOG_DIR="/var/log/httpd/${PORTAL_URL}"
 
 STATUS_CONF="/etc/httpd/conf.d/status.conf"
 SECURITY_CONF="/etc/httpd/conf.d/security.conf"
@@ -247,7 +262,7 @@ fi
 run "Installing python3-jinja2" dnf install -y --refresh python3-jinja2
 
 ###############################################################################
-# Render virtual host configuration
+# Render Apache virtual host configuration
 ###############################################################################
 
 log "Rendering Apache virtual host configuration"
@@ -288,10 +303,10 @@ else
     cp -f "${TEMP_SITE_CONFIG}" "${SITE_CONFIG}"
     rm -f "${TEMP_SITE_CONFIG}"
 
-    chmod 0644 "${SITE_CONFIG}"
-    chown root:root "${SITE_CONFIG}"
-
 fi
+
+run "Setting Apache virtual host configuration permissions" chmod 0644 "${SITE_CONFIG}"
+run "Setting Apache virtual host configuration ownership" chown root:root "${SITE_CONFIG}"
 
 ###############################################################################
 # Remove Jinja2
@@ -303,8 +318,6 @@ run "Removing python3-jinja2" dnf remove -y python3-jinja2
 # Apache log directory
 ###############################################################################
 
-APACHE_LOG_DIR="/var/log/httpd/${PORTAL_URL}"
-
 if [[ -d "${APACHE_LOG_DIR}" ]]; then
 
     log "Apache log directory already exists: ${APACHE_LOG_DIR}"
@@ -312,10 +325,11 @@ if [[ -d "${APACHE_LOG_DIR}" ]]; then
 else
 
     run "Creating Apache log directory" mkdir -p "${APACHE_LOG_DIR}"
-    run "Setting Apache log directory ownership" chown root:root "${APACHE_LOG_DIR}"
-    run "Setting Apache log directory permissions" chmod 0755 "${APACHE_LOG_DIR}"
 
 fi
+
+run "Setting Apache log directory ownership" chown root:root "${APACHE_LOG_DIR}"
+run "Setting Apache log directory permissions" chmod 0755 "${APACHE_LOG_DIR}"
 
 ###############################################################################
 # Comment default DocumentRoot
@@ -336,13 +350,22 @@ fi
 # SELinux port
 ###############################################################################
 
-if ! semanage port -l | grep -qE '^http_port_t.*\b7080\b'; then
+HTTPD_SELINUX_PORT_CONFIGURED="$(
+    semanage port -l | awk '
+        $1 == "http_port_t" && $0 ~ "(^|[,[:space:]])7080($|[,[:space:]])" {
+            print "yes"
+            exit
+        }
+    '
+)"
 
-    run "Adding SELinux HTTP port 7080" semanage port -a -t http_port_t -p tcp 7080
+if [[ "${HTTPD_SELINUX_PORT_CONFIGURED}" == "yes" ]]; then
+
+    log "SELinux HTTP port 7080 already configured"
 
 else
 
-    log "SELinux HTTP port 7080 already configured"
+    run "Adding SELinux HTTP port 7080" semanage port -a -t http_port_t -p tcp 7080
 
 fi
 

@@ -2,8 +2,7 @@
 
 ###############################################################################
 # Description:
-#   Deploys the PeerJS real-time communication service and integrates it with
-#   HAProxy on RHEL-based systems using a native systemd service:
+#   Deploys the PeerJS real-time communication service and integrates it with HAProxy on RHEL-based systems:
 #     - Requires root privileges
 #     - Logs all operations to /var/log/vision_deployment.log
 #     - Loads configuration from answers.txt
@@ -13,15 +12,17 @@
 #     - Resets the Node.js module stream
 #     - Enables the Node.js 24 module stream
 #     - Installs Node.js only when missing
+#     - Installs PM2 globally only when missing
+#     - Configures PM2 systemd startup for the root user
 #     - Configures Bitbucket SSH key permissions and ownership for secure Git access
 #     - Clones the PeerJS repository only when the PeerJS directory does not already exist
 #     - Installs PeerJS Node.js dependencies only during initial deployment
 #     - Sets PeerJS application ownership and permissions
 #     - Restores executable permissions for the PeerJS CLI entrypoint
-#     - Creates or updates a native systemd service for PeerJS
-#     - Enables and restarts the PeerJS systemd service
+#     - Starts or restarts the PeerJS application with PM2
+#     - Persists the PM2 process list
 #     - Validates that PeerJS is listening on TCP/9000
-#     - Ensures required HAProxy directories and hosts.map exist
+#     - Uses the HAProxy directories and hosts.map created by the HAProxy setup script
 #     - Installs Jinja2 to render HAProxy backend configuration
 #     - Renders the PeerJS HAProxy backend configuration from a Jinja2 template
 #     - Deploys the rendered PeerJS HAProxy backend configuration only when missing or changed
@@ -57,8 +58,6 @@ error() {
     echo "[ERROR] $(date '+%Y-%m-%d %H:%M:%S') - $*" >&2
 }
 
-trap 'error "Script failed at line ${LINENO}: ${BASH_COMMAND}"' ERR
-
 ###############################################################################
 # Root check
 ###############################################################################
@@ -93,14 +92,9 @@ run() {
 # Cleanup
 ###############################################################################
 
-TEMP_PEERJS_SERVICE_FILE=""
 TEMP_PEERJS_HAPROXY_CFG=""
 
 cleanup() {
-    if [[ -n "${TEMP_PEERJS_SERVICE_FILE:-}" && -f "${TEMP_PEERJS_SERVICE_FILE}" ]]; then
-        rm -f "${TEMP_PEERJS_SERVICE_FILE}"
-    fi
-
     if [[ -n "${TEMP_PEERJS_HAPROXY_CFG:-}" && -f "${TEMP_PEERJS_HAPROXY_CFG}" ]]; then
         rm -f "${TEMP_PEERJS_HAPROXY_CFG}"
     fi
@@ -136,8 +130,6 @@ PEERJS_REPO="git@bitbucket.org:teamsignifi/peerjs-server.git"
 PEERJS_BRANCH="master"
 
 PEERJS_DIR="/var/www/${PEERJS_PORTAL_URL}"
-PEERJS_SERVICE_NAME="peerjs"
-PEERJS_SERVICE_FILE="/etc/systemd/system/${PEERJS_SERVICE_NAME}.service"
 
 HAPROXY_CFG="/etc/haproxy/haproxy.cfg"
 
@@ -220,6 +212,35 @@ else
 fi
 
 ###############################################################################
+# Install PM2
+###############################################################################
+
+if command -v /usr/local/bin/pm2 >/dev/null 2>&1; then
+
+    log "PM2 already installed: /usr/local/bin/pm2"
+
+else
+
+    run "Installing PM2 globally" /usr/bin/npm install -g pm2
+
+fi
+
+###############################################################################
+# Configure PM2 startup
+###############################################################################
+
+if systemctl list-unit-files | awk '{print $1}' | grep -qx 'pm2-root.service'; then
+
+    log "PM2 systemd startup service already exists: pm2-root.service"
+
+else
+
+    run "Configuring PM2 systemd startup for root user" \
+        /usr/local/bin/pm2 startup systemd -u root --hp /root
+
+fi
+
+###############################################################################
 # Configure Git SSH
 ###############################################################################
 
@@ -291,49 +312,20 @@ else
     error "PeerJS executable not found: ${PEERJS_DIR}/bin/peerjs"
     exit 1
 fi
-
 ###############################################################################
-# Configure PeerJS systemd service
+# PM2 deployment
 ###############################################################################
 
-log "Rendering PeerJS systemd service file"
-
-TEMP_PEERJS_SERVICE_FILE="$(mktemp)"
-
-cat > "${TEMP_PEERJS_SERVICE_FILE}" <<EOF_SERVICE
-[Unit]
-Description=PeerJS Server for ${PEERJS_PORTAL_URL}
-After=network.target
-
-[Service]
-Type=simple
-WorkingDirectory=${PEERJS_DIR}
-Environment=PORT=9000
-ExecStart=/usr/bin/node ${PEERJS_DIR}/app.js
-Restart=always
-RestartSec=5
-SyslogIdentifier=peerjs
-
-[Install]
-WantedBy=multi-user.target
-EOF_SERVICE
-
-if [[ -f "${PEERJS_SERVICE_FILE}" ]] && cmp -s "${TEMP_PEERJS_SERVICE_FILE}" "${PEERJS_SERVICE_FILE}"; then
-
-    log "PeerJS systemd service file already up to date: ${PEERJS_SERVICE_FILE}"
-
+if /usr/local/bin/pm2 describe peerjs >/dev/null 2>&1; then
+    run "Restarting PeerJS PM2 application" \
+        bash -c "cd '${PEERJS_DIR}' && /usr/local/bin/pm2 restart peerjs"
 else
-
-    log "Deploying PeerJS systemd service file: ${PEERJS_SERVICE_FILE}"
-    cp -f "${TEMP_PEERJS_SERVICE_FILE}" "${PEERJS_SERVICE_FILE}"
-    run "Setting PeerJS systemd service file permissions" chmod 0644 "${PEERJS_SERVICE_FILE}"
-    run "Setting PeerJS systemd service file ownership" chown root:root "${PEERJS_SERVICE_FILE}"
-
+    run "Starting PeerJS PM2 application" \
+        bash -c "cd '${PEERJS_DIR}' && /usr/local/bin/pm2 start app.js --name peerjs"
 fi
 
-run "Reloading systemd daemon" systemctl daemon-reload
-run "Enabling PeerJS systemd service" systemctl enable "${PEERJS_SERVICE_NAME}.service"
-run "Restarting PeerJS systemd service" systemctl restart "${PEERJS_SERVICE_NAME}.service"
+run "Persisting PM2 process list" \
+    bash -c "cd '${PEERJS_DIR}' && /usr/local/bin/pm2 save"
 
 ###############################################################################
 # Validate PeerJS listener
@@ -343,35 +335,13 @@ log "Validating PeerJS listener on TCP/9000"
 
 sleep 3
 
-PEERJS_LISTENING="$(ss -tulpn | awk '/:9000[[:space:]]/ { print "yes"; exit }')"
-
-if [[ "${PEERJS_LISTENING}" == "yes" ]]; then
+if ss -tulpn | grep -qE '(^|[[:space:]])(\*|0\.0\.0\.0|127\.0\.0\.1|\[::\]|::):9000[[:space:]]'; then
     log "PeerJS is listening on TCP/9000"
 else
-    journalctl -u "${PEERJS_SERVICE_NAME}.service" --no-pager -n 50 || true
+    /usr/local/bin/pm2 logs peerjs --lines 50 --nostream || true
     error "PeerJS is not listening on TCP/9000"
     exit 1
 fi
-
-###############################################################################
-# Ensure HAProxy directories exist
-###############################################################################
-
-run "Creating HAProxy configuration directory" mkdir -p "${HAPROXY_CONF_DIR}"
-run "Creating HAProxy map directory" mkdir -p "${HAPROXY_MAP_DIR}"
-run "Creating HAProxy certificate directory" mkdir -p "${HAPROXY_CERT_DIR}"
-
-run "Setting HAProxy configuration directory ownership" chown root:root "${HAPROXY_CONF_DIR}"
-run "Setting HAProxy map directory ownership" chown root:root "${HAPROXY_MAP_DIR}"
-run "Setting HAProxy certificate directory ownership" chown root:root "${HAPROXY_CERT_DIR}"
-
-run "Setting HAProxy configuration directory permissions" chmod 0755 "${HAPROXY_CONF_DIR}"
-run "Setting HAProxy map directory permissions" chmod 0755 "${HAPROXY_MAP_DIR}"
-run "Setting HAProxy certificate directory permissions" chmod 0750 "${HAPROXY_CERT_DIR}"
-
-run "Creating HAProxy hosts map file" touch "${HAPROXY_MAP_FILE}"
-run "Setting HAProxy hosts map ownership" chown root:root "${HAPROXY_MAP_FILE}"
-run "Setting HAProxy hosts map permissions" chmod 0644 "${HAPROXY_MAP_FILE}"
 
 ###############################################################################
 # Install Jinja2
@@ -387,7 +357,7 @@ log "Rendering PeerJS backend configuration"
 
 TEMP_PEERJS_HAPROXY_CFG="$(mktemp)"
 
-python3 <<EOF_PYTHON
+python3 <<EOF
 from jinja2 import Template
 
 with open("${PEERJS_TEMPLATE}") as f:
@@ -401,16 +371,19 @@ rendered = rendered.rstrip("\n") + "\n"
 
 with open("${TEMP_PEERJS_HAPROXY_CFG}", "w") as f:
     f.write(rendered)
-EOF_PYTHON
+EOF
 
 if [[ -f "${PEERJS_HAPROXY_CFG}" ]] && cmp -s "${TEMP_PEERJS_HAPROXY_CFG}" "${PEERJS_HAPROXY_CFG}"; then
 
     log "PeerJS HAProxy backend configuration already up to date: ${PEERJS_HAPROXY_CFG}"
+    rm -f "${TEMP_PEERJS_HAPROXY_CFG}"
 
 else
 
     log "Deploying PeerJS HAProxy backend configuration: ${PEERJS_HAPROXY_CFG}"
+
     cp -f "${TEMP_PEERJS_HAPROXY_CFG}" "${PEERJS_HAPROXY_CFG}"
+    rm -f "${TEMP_PEERJS_HAPROXY_CFG}"
 
 fi
 
@@ -502,7 +475,4 @@ fi
 ###############################################################################
 
 unset GIT_SSH_COMMAND
-unset TEMP_PEERJS_SERVICE_FILE
-unset TEMP_PEERJS_HAPROXY_CFG
-
-log "PeerJS systemd deployment completed successfully."
+log "PeerJS deployment completed successfully."

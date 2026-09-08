@@ -50,8 +50,6 @@ error() {
     echo "[ERROR] $(date '+%Y-%m-%d %H:%M:%S') - $*" >&2
 }
 
-trap 'error "Script failed at line ${LINENO}: ${BASH_COMMAND}"' ERR
-
 ###############################################################################
 # Root check
 ###############################################################################
@@ -81,6 +79,31 @@ run() {
         return "$rc"
     fi
 }
+
+###############################################################################
+# Cleanup
+###############################################################################
+
+TEMP_GLOBAL_FRONTEND_CONFIG=""
+TEMP_GLOBAL_BACKEND_CONFIG=""
+TEMP_PORTAL_BACKEND_CONFIG=""
+
+cleanup() {
+    if [[ -n "${TEMP_GLOBAL_FRONTEND_CONFIG:-}" && -f "${TEMP_GLOBAL_FRONTEND_CONFIG}" ]]; then
+        rm -f "${TEMP_GLOBAL_FRONTEND_CONFIG}"
+    fi
+
+    if [[ -n "${TEMP_GLOBAL_BACKEND_CONFIG:-}" && -f "${TEMP_GLOBAL_BACKEND_CONFIG}" ]]; then
+        rm -f "${TEMP_GLOBAL_BACKEND_CONFIG}"
+    fi
+
+    if [[ -n "${TEMP_PORTAL_BACKEND_CONFIG:-}" && -f "${TEMP_PORTAL_BACKEND_CONFIG}" ]]; then
+        rm -f "${TEMP_PORTAL_BACKEND_CONFIG}"
+    fi
+}
+
+trap cleanup EXIT
+trap 'error "Script failed at line ${LINENO}: ${BASH_COMMAND}"' ERR
 
 ###############################################################################
 # Load configuration
@@ -121,6 +144,7 @@ PORTAL_BACKEND_TEMPLATE="${SCRIPT_DIR}/templates/portal_backend.j2"
 
 UNKNOWN_BACKEND_SRC="${SCRIPT_DIR}/files/haproxy_config/unknown_host_backend.cfg"
 HAPROXY_MAIN_SRC="${SCRIPT_DIR}/files/haproxy_config/haproxy.cfg"
+PORTAL_BACKEND_DEST="${HAPROXY_CONF_DIR}/${PORTAL_URL}_backend.cfg"
 
 ###############################################################################
 # Validate required variables
@@ -408,10 +432,8 @@ run "Setting Global backend configuration permissions" chmod 0644 "${GLOBAL_BACK
 run "Setting Global backend configuration ownership" chown root:root "${GLOBAL_BACKEND_DEST}"
 
 ###############################################################################
-# Render portal backend config
+# Render HAProxy portal backend config
 ###############################################################################
-
-PORTAL_BACKEND_DEST="${HAPROXY_CONF_DIR}/${PORTAL_URL}_backend.cfg"
 
 log "Rendering Portal backend configuration"
 
@@ -506,8 +528,8 @@ run "Validating HAProxy configuration" haproxy -c -f "${HAPROXY_CFG}" -f "${HAPR
 # Restart HAProxy
 ###############################################################################
 
-run "Stopping HAProxy" systemctl stop haproxy
-run "Enabling HAProxy" systemctl enable --now haproxy
+run "Enabling HAProxy" systemctl enable haproxy
+run "Restarting HAProxy" systemctl restart haproxy
 
 ###############################################################################
 # Update /etc/hosts entry

@@ -298,7 +298,16 @@ fi
 # SELinux PostgreSQL port
 ###############################################################################
 
-if semanage port -l | grep -qE "^postgresql_port_t.*\b${POSTGRES_PORT}\b"; then
+POSTGRES_SELINUX_PORT_CONFIGURED="$(
+    semanage port -l | awk -v port="${POSTGRES_PORT}" '
+        $1 == "postgresql_port_t" && $0 ~ "(^|[,[:space:]])" port "($|[,[:space:]])" {
+            print "yes"
+            exit
+        }
+    '
+)"
+
+if [[ "${POSTGRES_SELINUX_PORT_CONFIGURED}" == "yes" ]]; then
     log "SELinux PostgreSQL port ${POSTGRES_PORT} already configured"
 else
     run "Adding SELinux PostgreSQL port ${POSTGRES_PORT}" \
