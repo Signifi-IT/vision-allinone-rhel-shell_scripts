@@ -354,7 +354,7 @@ if [[ "${READY}" -ne 1 ]]; then
 fi
 
 ###############################################################################
-# Create application database user
+# Create or update application database user
 ###############################################################################
 
 export PGPASSWORD="${POSTGRES_ADMIN_PASSWORD}"

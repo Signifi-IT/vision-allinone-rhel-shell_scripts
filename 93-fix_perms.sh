@@ -18,6 +18,7 @@
 #     - Configures SELinux file context rules for the application media directory
 #     - Adds or updates SELinux file context rules as needed
 #     - Applies SELinux contexts recursively using restorecon
+#     - Enables required SELinux booleans for Apache database connectivity and HAProxy network access
 #     - Sets writable permissions on the primary application media directory
 #     - Sets writable permissions on the primary application sessions directory
 ###############################################################################
@@ -216,6 +217,42 @@ run "Configuring SELinux context for media directory" \
 ###############################################################################
 
 run "Restoring SELinux contexts for ${APP_DIR}" restorecon -RvF "${APP_DIR}"
+
+###############################################################################
+# SELinux booleans
+###############################################################################
+
+SEBOOLS=(
+    httpd_can_network_connect_db
+    haproxy_connect_any
+)
+
+for bool in "${SEBOOLS[@]}"; do
+
+    CURRENT_RUNTIME_STATE="$(getsebool "${bool}" | awk '{print $3}')"
+
+    if [[ "${CURRENT_RUNTIME_STATE}" == "on" ]]; then
+        log "SELinux boolean runtime state already enabled: ${bool}"
+    else
+        run "Enabling SELinux boolean runtime state: ${bool}" setsebool "${bool}" on
+    fi
+
+    CURRENT_PERSISTENT_STATE="$(
+        semanage boolean -l | awk -v bool="${bool}" '
+            $1 == bool {
+                gsub(/[(),]/, "", $2)
+                print $2
+            }
+        '
+    )"
+
+    if [[ "${CURRENT_PERSISTENT_STATE}" == "on" ]]; then
+        log "SELinux boolean persistent state already enabled: ${bool}"
+    else
+        run "Enabling SELinux boolean persistent state: ${bool}" setsebool -P "${bool}" on
+    fi
+
+done
 
 ###############################################################################
 # Configure filesystem permissions
