@@ -388,4 +388,5 @@ run "Enabling HTTPD service" systemctl enable httpd
 
 unset PORTAL_URL
 unset ALLOWED_IPS
+unset TEMP_SITE_CONFIG
 log "Apache configuration completed successfully."

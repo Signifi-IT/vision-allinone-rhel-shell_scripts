@@ -475,4 +475,7 @@ fi
 ###############################################################################
 
 unset GIT_SSH_COMMAND
+unset SYSTEM_IP
+unset PEERJS_PORTAL_URL_REGEX
+unset TEMP_PEERJS_HAPROXY_CFG
 log "PeerJS deployment completed successfully."

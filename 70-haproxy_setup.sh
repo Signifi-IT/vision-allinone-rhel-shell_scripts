@@ -558,4 +558,7 @@ unset PORTAL_URL
 unset SYSTEM_IP
 unset BACKEND_NAME
 unset PORTAL_URL_REGEX
+unset TEMP_GLOBAL_FRONTEND_CONFIG
+unset TEMP_GLOBAL_BACKEND_CONFIG
+unset TEMP_PORTAL_BACKEND_CONFIG
 log "HAProxy configuration completed successfully."
