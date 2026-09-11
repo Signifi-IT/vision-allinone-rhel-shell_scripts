@@ -219,6 +219,14 @@ run "Configuring SELinux context for media directory" \
 run "Restoring SELinux contexts for ${APP_DIR}" restorecon -RvF "${APP_DIR}"
 
 ###############################################################################
+# Configure filesystem permissions
+###############################################################################
+
+run "Setting media directory permissions" chmod 770 "${MEDIA_DIR}"
+
+run "Setting sessions directory permissions" chmod 770 "${SESSIONS_DIR}"
+
+###############################################################################
 # SELinux booleans
 ###############################################################################
 
@@ -229,23 +237,28 @@ SEBOOLS=(
 
 for bool in "${SEBOOLS[@]}"; do
 
-    CURRENT_RUNTIME_STATE="$(getsebool "${bool}" | awk '{print $3}')"
-
-    if [[ "${CURRENT_RUNTIME_STATE}" == "on" ]]; then
-        log "SELinux boolean runtime state already enabled: ${bool}"
-    else
-        run "Enabling SELinux boolean runtime state: ${bool}" setsebool "${bool}" on
+    if ! getsebool "${bool}" >/dev/null 2>&1; then
+        error "SELinux boolean does not exist: ${bool}"
+        exit 1
     fi
 
-    CURRENT_PERSISTENT_STATE="$(
-        semanage boolean -l | awk -v bool="${bool}" '
-            $1 == bool {
-                gsub(/[(),]/, "", $2)
-                print $2
-            }
-        '
-    )"
+    CURRENT_STATE="$(getsebool "${bool}" | awk '{print $3}')"
 
+    if [[ "${CURRENT_STATE}" == "on" ]]; then
+        log "SELinux boolean already enabled at runtime: ${bool}"
+    else
+        run "Enabling SELinux boolean at runtime: ${bool}" setsebool "${bool}" on
+    fi
+
+    run "Persistently enabling SELinux boolean: ${bool}" setsebool -P "${bool}" on
+
+done
+
+log "Verifying SELinux boolean states"
+
+for bool in "${SEBOOLS[@]}"; do
+    getsebool "${bool}"
+done
     if [[ "${CURRENT_PERSISTENT_STATE}" == "on" ]]; then
         log "SELinux boolean persistent state already enabled: ${bool}"
     else
@@ -253,14 +266,6 @@ for bool in "${SEBOOLS[@]}"; do
     fi
 
 done
-
-###############################################################################
-# Configure filesystem permissions
-###############################################################################
-
-run "Setting media directory permissions" chmod 770 "${MEDIA_DIR}"
-
-run "Setting sessions directory permissions" chmod 770 "${SESSIONS_DIR}"
 
 ###############################################################################
 # Completion
