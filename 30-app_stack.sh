@@ -424,7 +424,14 @@ done
 log "Verifying SELinux boolean states"
 
 for bool in "${SEBOOLS[@]}"; do
-    getsebool "${bool}"
+    CURRENT_STATE="$(getsebool "${bool}" | awk '{print $3}')"
+
+    if [[ "${CURRENT_STATE}" != "on" ]]; then
+        error "SELinux boolean is not enabled after configuration: ${bool}"
+        exit 1
+    fi
+
+    log "SELinux boolean verified enabled: ${bool}"
 done
 
 ###############################################################################
