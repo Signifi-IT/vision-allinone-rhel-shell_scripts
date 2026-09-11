@@ -254,17 +254,14 @@ for bool in "${SEBOOLS[@]}"; do
 
 done
 
+###############################################################################
+# Verify SELinux booleans
+###############################################################################
+
 log "Verifying SELinux boolean states"
 
 for bool in "${SEBOOLS[@]}"; do
     getsebool "${bool}"
-done
-    if [[ "${CURRENT_PERSISTENT_STATE}" == "on" ]]; then
-        log "SELinux boolean persistent state already enabled: ${bool}"
-    else
-        run "Enabling SELinux boolean persistent state: ${bool}" setsebool -P "${bool}" on
-    fi
-
 done
 
 ###############################################################################
