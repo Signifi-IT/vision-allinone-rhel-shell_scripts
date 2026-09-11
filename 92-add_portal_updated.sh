@@ -128,13 +128,14 @@ trap 'error "Script failed at line ${LINENO}: ${BASH_COMMAND}"' ERR
 ###############################################################################
 
 usage() {
-    cat <<EOF_USAGE
+    cat <<EOF
 Usage:
   bash $(basename "$0") --answer-file <filepath>.txt
 
 Example:
-  bash $(basename "$0") --answer-file ${SCRIPT_DIR}/answers-add_portal.txt
-EOF_USAGE
+  bash $(basename "$0") --answer-file /tmp/scripts/answers.txt
+  bash $(basename "$0") --answer-file /tmp/scripts/answers-add_portal.txt
+EOF
 }
 
 ###############################################################################
