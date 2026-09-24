@@ -93,6 +93,8 @@ REQUIRED_PACKAGES=(
     policycoreutils-restorecond
     python3-dnf
     python3-libselinux
+    setools-console
+    setools-console-analyses
     setroubleshoot
     setroubleshoot-plugins
     setroubleshoot-server

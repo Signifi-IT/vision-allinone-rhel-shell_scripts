@@ -2,40 +2,52 @@
 
 ###############################################################################
 # Description:
-#   Adds a new Vision application portal to an already configured application server on RHEL-based systems:
+#   Adds a new Vision application portal to an already configured application
+#   server on RHEL-based systems:
 #     - Requires root privileges
 #     - Logs all operations to /var/log/vision_deployment.log
-#     - Loads configuration from answers-add_portal.txt
+#     - Requires --answer-file argument to load the desired answer file
+#     - Loads configuration from the provided answer file
 #     - Validates required variables
-#     - Validates required files
-#     - Creates application database
-#     - Grants required database privileges to application user
-#     - Restores application database from backup
-#     - Query migration table and logs results for verification
-#     - Creates application directory structure under /var/www
-#     - Configures Bitbucket SSH key for secure Git access
-#     - Clones application, media, API, and mobile repositories from their branches
-#     - Deploys media, API, and mobile assets into application directory structure
-#     - Creates required application session directories
-#     - Removes temporary repository working directories
-#     - Installs Jinja2 to render templates
-#     - Generates Apache virtual host configuration from Jinja2 template
+#     - Validates required arrays
+#     - Validates required user-provided files
+#     - Waits for PostgreSQL readiness on TCP/5431
+#     - Creates or updates application database user with password
+#     - Creates application database when missing
+#     - Grants SUPERUSER privilege to the application database user
+#     - Grants required database privileges to the application database user
+#     - Restores application database from backup when migrations table does not exist
+#     - Queries migrations table and logs results for verification
+#     - Detects whether the application portal directory already exists before cloning
+#     - Configures Bitbucket SSH key permissions and ownership for secure Git access
+#     - Clones application, media, API, and mobile repositories only during initial deployment
+#     - Deploys media, API, and mobile assets into the application directory only during initial deployment
+#     - Creates required application session directory only during initial deployment
+#     - Removes temporary repository working directories only during initial deployment
+#     - Installs Jinja2 to render Apache and HAProxy configuration templates
+#     - Renders Apache virtual host configuration from a Jinja2 template
+#     - Deploys Apache virtual host configuration only when missing or changed
 #     - Creates and configures application-specific Apache log directory
 #     - Validates Apache configuration syntax
 #     - Enables and restarts Apache HTTPD service
-#     - Generates HAProxy configuration files from Jinja2 templates
+#     - Uses the HAProxy directories and hosts.map created by the HAProxy setup script
+#     - Renders HAProxy portal backend configuration from a Jinja2 template
+#     - Deploys HAProxy portal backend configuration only when missing or changed
 #     - Removes Jinja2 after rendering templates
-#     - Installs TLS certificate
-#     - Updates HAProxy host mapping file (hosts.map) with backend routing entries
-#     - Validates HAProxy configuration
-#     - Restarts and enables HAProxy service
-#     - Adds portal entry to /etc/hosts
-#     - Configures recursive application ownership and permission settings
-#     - Configures SELinux file contexts for the application sessions directory
-#     - Configures SELinux file contexts for the application media directory
+#     - Installs the TLS certificate only when missing or changed
+#     - Escapes the portal URL for safe regex-based file updates
+#     - Updates HAProxy hosts.map with the portal backend routing entry
+#     - Validates the HAProxy configuration
+#     - Enables and restarts the HAProxy service
+#     - Adds or updates the portal entry in /etc/hosts
+#     - Sets application directory permissions recursively to 0755
+#     - Sets application file permissions recursively to 0644
+#     - Sets recursive application ownership to root:apache
+#     - Configures SELinux file context rules for the application sessions directory
+#     - Configures SELinux file context rules for the application media directory
 #     - Applies SELinux contexts recursively using restorecon
-#     - Sets writable permissions on the application media directory
-#     - Sets writable permissions on the application sessions directory
+#     - Sets writable permissions on the primary application media directory
+#     - Sets writable permissions on the primary application sessions directory
 ###############################################################################
 
 set -Eeuo pipefail
@@ -60,8 +72,6 @@ warn() {
 error() {
     echo "[ERROR] $(date '+%Y-%m-%d %H:%M:%S') - $*" >&2
 }
-
-trap 'error "Script failed at line ${LINENO}: ${BASH_COMMAND}"' ERR
 
 ###############################################################################
 # Root check
@@ -94,11 +104,84 @@ run() {
 }
 
 ###############################################################################
+# Cleanup
+###############################################################################
+
+TEMP_SITE_CONFIG=""
+TEMP_PORTAL_BACKEND_CONFIG=""
+
+cleanup() {
+    if [[ -n "${TEMP_SITE_CONFIG:-}" && -f "${TEMP_SITE_CONFIG}" ]]; then
+        rm -f "${TEMP_SITE_CONFIG}"
+    fi
+
+    if [[ -n "${TEMP_PORTAL_BACKEND_CONFIG:-}" && -f "${TEMP_PORTAL_BACKEND_CONFIG}" ]]; then
+        rm -f "${TEMP_PORTAL_BACKEND_CONFIG}"
+    fi
+}
+
+trap cleanup EXIT
+trap 'error "Script failed at line ${LINENO}: ${BASH_COMMAND}"' ERR
+
+###############################################################################
+# Usage
+###############################################################################
+
+usage() {
+    cat <<EOF
+Usage:
+  bash $(basename "$0") --answer-file <filepath>.txt
+
+Example:
+  bash $(basename "$0") --answer-file /tmp/scripts/answers.txt
+  bash $(basename "$0") --answer-file /tmp/scripts/answers-add_portal.txt
+EOF
+}
+
+###############################################################################
+# Parse arguments
+###############################################################################
+
+ANSWER_FILE=""
+
+while [[ "$#" -gt 0 ]]; do
+    case "$1" in
+        --answer-file)
+            if [[ -z "${2:-}" ]]; then
+                error "Missing value for --answer-file"
+                usage
+                exit 1
+            fi
+
+            ANSWER_FILE="$2"
+            shift 2
+            ;;
+
+        -h|--help)
+            usage
+            exit 0
+            ;;
+
+        *)
+            error "Unknown argument: $1"
+            usage
+            exit 1
+            ;;
+    esac
+done
+
+if [[ -z "${ANSWER_FILE}" ]]; then
+    error "Required argument --answer-file is missing"
+    usage
+    exit 1
+fi
+
+###############################################################################
 # Load configuration
 ###############################################################################
 
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
-CONFIG_FILE="${SCRIPT_DIR}/answers-add_portal.txt"
+CONFIG_FILE="${ANSWER_FILE}"
 
 if [[ ! -f "${CONFIG_FILE}" ]]; then
     error "Configuration file not found: ${CONFIG_FILE}"
@@ -125,18 +208,22 @@ PG_ISREADY="/usr/pgsql-14/bin/pg_isready"
 BACKUP_FILE="${BACKUP_FILE_PATH}"
 
 APP_DIR="/var/www/${PORTAL_URL}"
+MEDIA_DIR="${APP_DIR}/media"
+SESSIONS_DIR="${APP_DIR}/api/application/sessions"
 
 TEMPLATE_FILE="${SCRIPT_DIR}/templates/site_template.j2"
 PORTAL_BACKEND_TEMPLATE="${SCRIPT_DIR}/templates/portal_backend.j2"
 
 SITE_CONFIG="/etc/httpd/conf.d/${PORTAL_URL}.conf"
+APACHE_LOG_DIR="/var/log/httpd/${PORTAL_URL}"
 
 HAPROXY_CFG="/etc/haproxy/haproxy.cfg"
 HAPROXY_CONF_DIR="/etc/haproxy/conf.d"
-HAPROXY_MAP_FILE="/etc/haproxy/maps/hosts.map"
+HAPROXY_MAP_DIR="/etc/haproxy/maps"
+HAPROXY_MAP_FILE="${HAPROXY_MAP_DIR}/hosts.map"
 HAPROXY_CERT_DIR="/etc/haproxy/certs"
-
 CERT_DEST="${HAPROXY_CERT_DIR}/${PORTAL_URL}.pem"
+PORTAL_BACKEND_DEST="${HAPROXY_CONF_DIR}/${PORTAL_URL}_backend.cfg"
 
 ###############################################################################
 # Validate required variables
@@ -163,10 +250,14 @@ REQUIRED_VARS=(
 
 for var in "${REQUIRED_VARS[@]}"; do
     if [[ -z "${!var:-}" ]]; then
-        error "Required variable '${var}' is not defined"
+        error "Required variable '${var}' is not defined or is empty"
         exit 1
     fi
 done
+
+###############################################################################
+# Validate required arrays
+###############################################################################
 
 if [[ "${#ALLOWED_SERVER_STATUS_IPS[@]}" -eq 0 ]]; then
     error "Required array 'ALLOWED_SERVER_STATUS_IPS' is not defined or is empty"
@@ -204,6 +295,7 @@ for i in {1..30}; do
         log "PostgreSQL is ready"
         break
     fi
+
     sleep 1
 done
 
@@ -211,6 +303,42 @@ if [[ "${READY}" -ne 1 ]]; then
     error "PostgreSQL failed to become ready"
     exit 1
 fi
+
+###############################################################################
+# Create or update application database user
+###############################################################################
+
+export PGPASSWORD="${POSTGRES_ADMIN_PASSWORD}"
+
+run "Creating or updating application user" \
+    "${PSQL}" \
+        -h 127.0.0.1 \
+        -p "${POSTGRES_PORT}" \
+        -U postgres \
+        -d postgres \
+        -v ON_ERROR_STOP=1 \
+        -c "
+DO \$\$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_roles
+        WHERE rolname = '${APP_DB_USER}'
+    ) THEN
+
+        CREATE ROLE \"${APP_DB_USER}\"
+        LOGIN
+        PASSWORD '${APP_DB_PASSWORD}';
+
+    ELSE
+
+        ALTER ROLE \"${APP_DB_USER}\"
+        WITH PASSWORD '${APP_DB_PASSWORD}';
+
+    END IF;
+END
+\$\$;
+"
 
 ###############################################################################
 # Create PostgreSQL application database
@@ -225,6 +353,7 @@ DB_EXISTS=$(
         -U postgres \
         -d postgres \
         -At \
+        -v ON_ERROR_STOP=1 \
         -c "SELECT 1 FROM pg_database WHERE datname='${APP_DB_NAME}';"
 )
 
@@ -236,6 +365,7 @@ if [[ "${DB_EXISTS}" != "1" ]]; then
             -p "${POSTGRES_PORT}" \
             -U postgres \
             -d postgres \
+            -v ON_ERROR_STOP=1 \
             -c "CREATE DATABASE \"${APP_DB_NAME}\" OWNER \"${APP_DB_USER}\" ENCODING 'UTF8';"
 
 else
@@ -263,12 +393,15 @@ run "Granting SUPERUSER privilege to ${APP_DB_USER}" \
 # Grant privileges on database
 ###############################################################################
 
+export PGPASSWORD="${POSTGRES_ADMIN_PASSWORD}"
+
 run "Granting database privileges to ${APP_DB_USER}" \
     "${PSQL}" \
         -h 127.0.0.1 \
         -p "${POSTGRES_PORT}" \
         -U postgres \
         -d postgres \
+        -v ON_ERROR_STOP=1 \
         -c "GRANT ALL PRIVILEGES ON DATABASE \"${APP_DB_NAME}\" TO \"${APP_DB_USER}\";"
 
 ###############################################################################
@@ -277,15 +410,39 @@ run "Granting database privileges to ${APP_DB_USER}" \
 
 export PGPASSWORD="${POSTGRES_ADMIN_PASSWORD}"
 
-log "Restoring database backup"
+log "Checking whether migrations table already exists..."
 
-run "Restoring database backup" \
-    "${PG_RESTORE}" \
+MIGRATIONS_EXISTS=$(
+    "${PSQL}" \
+        -h 127.0.0.1 \
         -p "${POSTGRES_PORT}" \
-        --username postgres \
-        --dbname "${APP_DB_NAME}" \
-        "${BACKUP_FILE}" \
-        >/dev/null 2>&1 || true
+        -U postgres \
+        -d "${APP_DB_NAME}" \
+        -At \
+        -c "SELECT to_regclass('public.migrations');"
+)
+
+if [[ "${MIGRATIONS_EXISTS}" == "migrations" ]]; then
+
+    log "Database is already migrated. Skipping database restore."
+
+else
+
+    log "Migrations table does not exist. Restoring database backup."
+
+    if ! run "Restoring database backup" \
+        "${PG_RESTORE}" \
+            -h 127.0.0.1 \
+            -p "${POSTGRES_PORT}" \
+            --username postgres \
+            --dbname "${APP_DB_NAME}" \
+            "${BACKUP_FILE}"; then
+
+        warn "pg_restore returned a non-zero exit code, continuing because restore errors are being tolerated"
+
+    fi
+
+fi
 
 ###############################################################################
 # Migration verification
@@ -293,36 +450,63 @@ run "Restoring database backup" \
 
 log "Querying migrations table for verification..."
 
-RESULT=$(
+MIGRATIONS_EXISTS=$(
     "${PSQL}" \
         -h 127.0.0.1 \
-        -p 5431 \
+        -p "${POSTGRES_PORT}" \
         -U postgres \
         -d "${APP_DB_NAME}" \
         -At \
-        -c "SELECT * FROM migrations;"
+        -c "SELECT to_regclass('public.migrations');"
 )
 
-log "Migrations table output: ${RESULT}"
+if [[ "${MIGRATIONS_EXISTS}" == "migrations" ]]; then
+
+    MIGRATION_OUTPUT=$(
+        "${PSQL}" \
+            -h 127.0.0.1 \
+            -p "${POSTGRES_PORT}" \
+            -U postgres \
+            -d "${APP_DB_NAME}" \
+            -At \
+            -c "SELECT * FROM migrations;"
+    )
+
+    log "Migrations table exists. Migration records: ${MIGRATION_OUTPUT}"
+
+else
+
+    warn "Migrations table does not exist in database ${APP_DB_NAME}. Migration verification skipped."
+
+fi
 
 ###############################################################################
 # Application directory
 ###############################################################################
 
-log "Creating application portal directory"
+APP_DIR_ALREADY_EXISTS=0
 
-mkdir -p "${APP_DIR}"
-chmod 0755 "${APP_DIR}"
-chown -R root:apache "${APP_DIR}"
+if [[ -d "${APP_DIR}" ]]; then
+
+    APP_DIR_ALREADY_EXISTS=1
+    log "Application portal directory already exists: ${APP_DIR}"
+
+else
+
+    log "Creating application portal directory: ${APP_DIR}"
+
+    mkdir -p "${APP_DIR}"
+    chmod 0755 "${APP_DIR}"
+    chown root:apache "${APP_DIR}"
+
+fi
 
 ###############################################################################
 # Git SSH configuration
 ###############################################################################
 
-log "Configuring Bitbucket SSH key permissions"
-
-chmod 0400 "${BITBUCKET_KEY}"
-chown root:root "${BITBUCKET_KEY}"
+run "Setting Bitbucket SSH key permissions" chmod 0400 "${BITBUCKET_KEY}"
+run "Setting Bitbucket SSH key ownership" chown root:root "${BITBUCKET_KEY}"
 
 export GIT_SSH_COMMAND="ssh -i ${BITBUCKET_KEY} -o StrictHostKeyChecking=accept-new"
 
@@ -330,21 +514,17 @@ export GIT_SSH_COMMAND="ssh -i ${BITBUCKET_KEY} -o StrictHostKeyChecking=accept-
 # Repository deployment
 ###############################################################################
 
-clone_or_update_repo() {
+if [[ "${APP_DIR_ALREADY_EXISTS}" -eq 1 ]]; then
 
-    local repo="$1"
-    local branch="$2"
-    local dest="$3"
+    log "Application portal directory already exists. Skipping repository deployment."
 
-    if [[ -d "${dest}/.git" ]]; then
+else
 
-        run "Updating repository metadata" git -C "${dest}" fetch --all --prune --quiet
+    clone_repo() {
 
-        run "Checking out ${branch}" git -C "${dest}" checkout -q "${branch}"
-
-        run "Synchronizing repository" git -C "${dest}" reset --hard "origin/${branch}"
-
-    else
+        local repo="$1"
+        local branch="$2"
+        local dest="$3"
 
         run "Cloning repository into: ${dest}" \
             git clone \
@@ -352,76 +532,98 @@ clone_or_update_repo() {
                 --branch "${branch}" \
                 "${repo}" \
                 "${dest}"
+    }
 
-    fi
-}
+    clone_repo \
+        "${APP_URL}" \
+        "${APP_BRANCH}" \
+        "${APP_DIR}"
 
-clone_or_update_repo \
-    "${APP_URL}" \
-    "${APP_BRANCH}" \
-    "/var/www/${PORTAL_URL}"
+    clone_repo \
+        "${APP_MEDIA_URL}" \
+        "${APP_MEDIA_BRANCH}" \
+        "/var/www/${PORTAL_URL}_media"
 
-clone_or_update_repo \
-    "${APP_MEDIA_URL}" \
-    "${APP_MEDIA_BRANCH}" \
-    "/var/www/${PORTAL_URL}_media"
+    clone_repo \
+        "${APP_API_URL}" \
+        "${APP_API_BRANCH}" \
+        "/var/www/${PORTAL_URL}_api"
 
-clone_or_update_repo \
-    "${APP_API_URL}" \
-    "${APP_API_BRANCH}" \
-    "/var/www/${PORTAL_URL}_api"
+    clone_repo \
+        "${APP_MOBILE_URL}" \
+        "${APP_MOBILE_BRANCH}" \
+        "/var/www/${PORTAL_URL}_mobile"
 
-clone_or_update_repo \
-    "${APP_MOBILE_URL}" \
-    "${APP_MOBILE_BRANCH}" \
-    "/var/www/${PORTAL_URL}_mobile"
+fi
 
 ###############################################################################
 # Deploy media, API and mobile content
 ###############################################################################
 
-for component in media api mobile; do
+if [[ "${APP_DIR_ALREADY_EXISTS}" -eq 1 ]]; then
 
-    SOURCE="/var/www/${PORTAL_URL}_${component}"
-    DEST="/var/www/${PORTAL_URL}/${component}"
+    log "Application portal directory already exists. Skipping media, API and mobile content deployment."
 
-    log "Deploying ${component} content"
+else
 
-    mkdir -p "${DEST}"
+    for component in media api mobile; do
 
-    cp -a "${SOURCE}/." "${DEST}/"
+        SOURCE="/var/www/${PORTAL_URL}_${component}"
+        DEST="${APP_DIR}/${component}"
 
-    chmod 0755 "${DEST}"
-    chown -R root:apache "${DEST}"
+        log "Deploying ${component} content"
 
-done
+        mkdir -p "${DEST}"
+
+        cp -a "${SOURCE}/." "${DEST}/"
+
+        chmod 0755 "${DEST}"
+        chown -R root:apache "${DEST}"
+
+    done
+
+fi
 
 ###############################################################################
 # Application sessions directory
 ###############################################################################
 
-SESSION_DIR="/var/www/${PORTAL_URL}/api/application/sessions"
+if [[ "${APP_DIR_ALREADY_EXISTS}" -eq 1 ]]; then
 
-log "Creating application session directory"
+    log "Application portal directory already exists. Skipping application session directory creation."
 
-mkdir -p "${SESSION_DIR}"
-chmod 0755 "${SESSION_DIR}"
-chown -R root:apache "${SESSION_DIR}"
+else
+
+    log "Creating application session directory: ${SESSIONS_DIR}"
+
+    mkdir -p "${SESSIONS_DIR}"
+    chmod 0755 "${SESSIONS_DIR}"
+    chown root:apache "${SESSIONS_DIR}"
+
+fi
 
 ###############################################################################
 # Remove temporary repository directories
 ###############################################################################
 
-for component in media api mobile; do
+if [[ "${APP_DIR_ALREADY_EXISTS}" -eq 1 ]]; then
 
-    TEMP_DIR="/var/www/${PORTAL_URL}_${component}"
+    log "Application portal directory already exists. Skipping temporary repository cleanup."
 
-    if [[ -d "${TEMP_DIR}" ]]; then
-        log "Removing temporary directory ${TEMP_DIR}"
-        rm -rf "${TEMP_DIR}"
-    fi
+else
 
-done
+    for component in media api mobile; do
+
+        TEMP_DIR="/var/www/${PORTAL_URL}_${component}"
+
+        if [[ -d "${TEMP_DIR}" ]]; then
+            log "Removing temporary directory ${TEMP_DIR}"
+            rm -rf "${TEMP_DIR}"
+        fi
+
+    done
+
+fi
 
 ###############################################################################
 # Install Jinja2
@@ -430,7 +632,7 @@ done
 run "Installing python3-jinja2" dnf install -y --refresh python3-jinja2
 
 ###############################################################################
-# Render virtual host configuration
+# Render Apache virtual host configuration
 ###############################################################################
 
 log "Rendering Apache virtual host configuration"
@@ -439,6 +641,8 @@ export PORTAL_URL
 
 ALLOWED_IPS="$(printf '%s\n' "${ALLOWED_SERVER_STATUS_IPS[@]}")"
 export ALLOWED_IPS
+
+TEMP_SITE_CONFIG="$(mktemp)"
 
 python3 <<EOF
 from jinja2 import Template
@@ -453,20 +657,42 @@ rendered = template.render(
 
 rendered = rendered.rstrip("\n") + "\n"
 
-with open("${SITE_CONFIG}", "w") as f:
+with open("${TEMP_SITE_CONFIG}", "w") as f:
     f.write(rendered)
 EOF
 
-chmod 0644 "${SITE_CONFIG}"
-chown root:root "${SITE_CONFIG}"
+if [[ -f "${SITE_CONFIG}" ]] && cmp -s "${TEMP_SITE_CONFIG}" "${SITE_CONFIG}"; then
+
+    log "Apache virtual host configuration already up to date: ${SITE_CONFIG}"
+    rm -f "${TEMP_SITE_CONFIG}"
+
+else
+
+    log "Deploying Apache virtual host configuration: ${SITE_CONFIG}"
+    cp -f "${TEMP_SITE_CONFIG}" "${SITE_CONFIG}"
+    rm -f "${TEMP_SITE_CONFIG}"
+
+fi
+
+run "Setting Apache virtual host configuration permissions" chmod 0644 "${SITE_CONFIG}"
+run "Setting Apache virtual host configuration ownership" chown root:root "${SITE_CONFIG}"
 
 ###############################################################################
 # Apache log directory
 ###############################################################################
 
-run "Creating Apache log directory" mkdir -p "/var/log/httpd/${PORTAL_URL}"
-run "Setting Apache log directory ownership" chown root:root "/var/log/httpd/${PORTAL_URL}"
-run "Setting Apache log directory permissions" chmod 0755 "/var/log/httpd/${PORTAL_URL}"
+if [[ -d "${APACHE_LOG_DIR}" ]]; then
+
+    log "Apache log directory already exists: ${APACHE_LOG_DIR}"
+
+else
+
+    run "Creating Apache log directory" mkdir -p "${APACHE_LOG_DIR}"
+
+fi
+
+run "Setting Apache log directory ownership" chown root:root "${APACHE_LOG_DIR}"
+run "Setting Apache log directory permissions" chmod 0755 "${APACHE_LOG_DIR}"
 
 ###############################################################################
 # Validate Apache
@@ -482,10 +708,12 @@ run "Restarting HTTPD service" systemctl restart httpd
 run "Enabling HTTPD service" systemctl enable httpd
 
 ###############################################################################
-# Render portal backend config
+# Render HAProxy portal backend config
 ###############################################################################
 
 log "Rendering Portal backend configuration"
+
+TEMP_PORTAL_BACKEND_CONFIG="$(mktemp)"
 
 python3 <<EOF
 from jinja2 import Template
@@ -497,12 +725,26 @@ rendered = tpl.render(portal_url="${PORTAL_URL}")
 
 rendered = rendered.rstrip("\n") + "\n"
 
-with open("${HAPROXY_CONF_DIR}/${PORTAL_URL}_backend.cfg", "w") as f:
+with open("${TEMP_PORTAL_BACKEND_CONFIG}", "w") as f:
     f.write(rendered)
 EOF
 
-chmod 0644 "${HAPROXY_CONF_DIR}/${PORTAL_URL}_backend.cfg"
-chown root:root "${HAPROXY_CONF_DIR}/${PORTAL_URL}_backend.cfg"
+if [[ -f "${PORTAL_BACKEND_DEST}" ]] && cmp -s "${TEMP_PORTAL_BACKEND_CONFIG}" "${PORTAL_BACKEND_DEST}"; then
+
+    log "Portal backend configuration already up to date: ${PORTAL_BACKEND_DEST}"
+    rm -f "${TEMP_PORTAL_BACKEND_CONFIG}"
+
+else
+
+    log "Deploying Portal backend configuration: ${PORTAL_BACKEND_DEST}"
+
+    cp -f "${TEMP_PORTAL_BACKEND_CONFIG}" "${PORTAL_BACKEND_DEST}"
+    rm -f "${TEMP_PORTAL_BACKEND_CONFIG}"
+
+fi
+
+run "Setting Portal backend configuration permissions" chmod 0644 "${PORTAL_BACKEND_DEST}"
+run "Setting Portal backend configuration ownership" chown root:root "${PORTAL_BACKEND_DEST}"
 
 ###############################################################################
 # Remove Jinja2
@@ -514,10 +756,24 @@ run "Removing python3-jinja2" dnf remove -y python3-jinja2
 # Install TLS certificate
 ###############################################################################
 
-run "Installing TLS certificate" cp -f "${CERT_PATH}" "${CERT_DEST}"
+if [[ -f "${CERT_DEST}" ]] && cmp -s "${CERT_PATH}" "${CERT_DEST}"; then
 
-chmod 0600 "${CERT_DEST}"
-chown root:root "${CERT_DEST}"
+    log "TLS certificate already up to date: ${CERT_DEST}"
+
+else
+
+    run "Installing TLS certificate" cp -f "${CERT_PATH}" "${CERT_DEST}"
+
+fi
+
+run "Setting TLS certificate permissions" chmod 0600 "${CERT_DEST}"
+run "Setting TLS certificate ownership" chown root:root "${CERT_DEST}"
+
+###############################################################################
+# Escape portal URL for regex operations
+###############################################################################
+
+PORTAL_URL_REGEX="$(printf '%s\n' "${PORTAL_URL}" | sed 's/[][\/.^$*+?{}|()]/\\&/g')"
 
 ###############################################################################
 # Update hosts.map entry
@@ -525,10 +781,18 @@ chown root:root "${CERT_DEST}"
 
 BACKEND_NAME="${PORTAL_URL//[-.]/_}_backend"
 
-log "Adding ${PORTAL_URL} to HAProxy backend map as ${BACKEND_NAME}"
+log "Ensuring ${PORTAL_URL} is mapped to ${BACKEND_NAME} in HAProxy backend map"
 
-grep -q "${PORTAL_URL}" "${HAPROXY_MAP_FILE}" || \
+if grep -qE "^${PORTAL_URL_REGEX}[[:space:]]+${BACKEND_NAME}$" "${HAPROXY_MAP_FILE}"; then
+
+    log "HAProxy backend map entry already exists: ${PORTAL_URL} ${BACKEND_NAME}"
+
+else
+
+    sed -i "\|^${PORTAL_URL_REGEX}[[:space:]]|d" "${HAPROXY_MAP_FILE}"
     echo "${PORTAL_URL} ${BACKEND_NAME}" >> "${HAPROXY_MAP_FILE}"
+
+fi
 
 ###############################################################################
 # Validate HAProxy
@@ -540,8 +804,8 @@ run "Validating HAProxy configuration" haproxy -c -f "${HAPROXY_CFG}" -f "${HAPR
 # Restart HAProxy
 ###############################################################################
 
-run "Stopping HAProxy" systemctl stop haproxy
-run "Enabling HAProxy" systemctl enable --now haproxy
+run "Enabling HAProxy" systemctl enable haproxy
+run "Restarting HAProxy" systemctl restart haproxy
 
 ###############################################################################
 # Update /etc/hosts entry
@@ -549,13 +813,31 @@ run "Enabling HAProxy" systemctl enable --now haproxy
 
 SYSTEM_IP="$(hostname -I | awk '{print $1}')"
 
-log "Adding Portal host entry to /etc/hosts"
+log "Ensuring Portal host entry exists in /etc/hosts"
 
-grep -qE "^[[:space:]]*${SYSTEM_IP}[[:space:]]+${PORTAL_URL}$" /etc/hosts || \
+if grep -qE "^[[:space:]]*${SYSTEM_IP}[[:space:]]+${PORTAL_URL_REGEX}$" /etc/hosts; then
+
+    log "/etc/hosts entry already exists: ${SYSTEM_IP} ${PORTAL_URL}"
+
+else
+
+    sed -i "\|[[:space:]]${PORTAL_URL_REGEX}$|d" /etc/hosts
     echo "${SYSTEM_IP} ${PORTAL_URL}" >> /etc/hosts
+
+fi
+
+###############################################################################
+# Completion
+###############################################################################
 
 unset PGPASSWORD
 unset GIT_SSH_COMMAND
 unset PORTAL_URL
 unset ALLOWED_IPS
+unset SYSTEM_IP
+unset BACKEND_NAME
+unset PORTAL_URL_REGEX
+unset TEMP_SITE_CONFIG
+unset TEMP_PORTAL_BACKEND_CONFIG
+
 log "New portal configuration completed successfully."

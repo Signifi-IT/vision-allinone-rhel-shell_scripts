@@ -1,0 +1,29 @@
+# Absolute path to the SSH private key used for accessing Bitbucket repositories
+BITBUCKET_KEY="${SCRIPT_DIR}/files/project_files/<filename>"
+
+# Public URL/domain of the Vision application portal
+PORTAL_URL=""
+
+# Git repository URL for the main Vision application
+APP_URL=""
+
+# Git branch to deploy for the main Vision application
+APP_BRANCH=""
+
+# Git repository URL for Vision application media assets
+APP_MEDIA_URL=""
+
+# Git branch to deploy for Vision application media assets
+APP_MEDIA_BRANCH=""
+
+# Git repository URL for the Vision application API
+APP_API_URL=""
+
+# Git branch to deploy for the Vision application API
+APP_API_BRANCH=""
+
+# Git repository URL for the Vision mobile application
+APP_MOBILE_URL=""
+
+# Git branch to deploy for the Vision mobile application
+APP_MOBILE_BRANCH=""
