@@ -23,7 +23,7 @@
 #     - Clones application, media, API, and mobile repositories only during initial deployment
 #     - Deploys media, API, and mobile assets into the application directory only during initial deployment
 #     - Creates required application session directory only during initial deployment
-#     - Sets 0755 permission and root:apache ownershipo on the portal directories it creates
+#     - Sets 0755 permissions and root:apache ownership on the portal directories created during initial deployment
 #     - Removes temporary repository working directories only during initial deployment
 #     - Installs Jinja2 to render Apache and HAProxy configuration templates
 #     - Renders Apache virtual host configuration from a Jinja2 template
