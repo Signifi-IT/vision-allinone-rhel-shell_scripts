@@ -23,6 +23,7 @@
 #     - Clones application, media, API, and mobile repositories only during initial deployment
 #     - Deploys media, API, and mobile assets into the application directory only during initial deployment
 #     - Creates required application session directory only during initial deployment
+#     - Sets 0755 permission and root:apache ownershipo on the portal directories it creates
 #     - Removes temporary repository working directories only during initial deployment
 #     - Installs Jinja2 to render Apache and HAProxy configuration templates
 #     - Renders Apache virtual host configuration from a Jinja2 template
@@ -40,14 +41,6 @@
 #     - Validates the HAProxy configuration
 #     - Enables and restarts the HAProxy service
 #     - Adds or updates the portal entry in /etc/hosts
-#     - Sets application directory permissions recursively to 0755
-#     - Sets application file permissions recursively to 0644
-#     - Sets recursive application ownership to root:apache
-#     - Configures SELinux file context rules for the application sessions directory
-#     - Configures SELinux file context rules for the application media directory
-#     - Applies SELinux contexts recursively using restorecon
-#     - Sets writable permissions on the primary application media directory
-#     - Sets writable permissions on the primary application sessions directory
 ###############################################################################
 
 set -Eeuo pipefail
