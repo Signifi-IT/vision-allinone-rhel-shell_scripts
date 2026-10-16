@@ -444,7 +444,7 @@ fi
 
 log "Validating SeasLog PHP extension"
 
-if ! php -m | grep -qi '^seaslog$'; then
+if ! php -m | grep -i '^seaslog$' >/dev/null; then
     error "SeasLog extension is not listed in loaded PHP modules"
     exit 1
 fi
