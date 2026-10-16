@@ -5,6 +5,7 @@ POSTGRES_ADMIN_PASSWORD=""
 DB_USER_AUTHENTICATION_HBA=(
     postgres
     all
+    signifi
 )
 
 # List of networks allowed in pg_hba.conf for database authentication
@@ -13,7 +14,7 @@ DB_NETWORK_AUTHENTICATION_HBA=(
 )
 
 # Application database owner username in PostgreSQL
-APP_DB_USER=""
+APP_DB_USER="signifi"
 
 # Password for the application database user
 APP_DB_PASSWORD=""
