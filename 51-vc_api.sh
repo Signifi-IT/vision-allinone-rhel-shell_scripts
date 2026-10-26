@@ -78,7 +78,7 @@ Usage:
   bash $(basename "$0") --answer-file <filepath>.txt
 
 Example:
-  bash $(basename "$0") --answer-file /tmp/scripts/answers.txt
+  bash $(basename "$0") --answer-file /tmp/scripts/answers-vc_api.txt
 EOF
 }
 
@@ -246,8 +246,6 @@ clone_repo \
 ###############################################################################
 # Deploy VC API content
 ###############################################################################
-
-log "Deploying vc-api content"
 
 run "Copying VC API repository content to ${VC_API_DIR}" \
     cp -a "${VC_DIR}/." "${VC_API_DIR}/"
