@@ -233,6 +233,7 @@ run "Setting sessions directory permissions" chmod 770 "${SESSIONS_DIR}"
 SEBOOLS=(
     httpd_can_network_connect_db
     haproxy_connect_any
+    logging_syslogd_list_non_security_dirs
 )
 
 for bool in "${SEBOOLS[@]}"; do
