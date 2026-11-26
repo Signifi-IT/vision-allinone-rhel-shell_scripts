@@ -322,6 +322,7 @@ fi
 
 run "Setting HAProxy default configuration permissions" chmod 0644 "${HAPROXY_CFG}"
 run "Setting HAProxy default configuration ownership" chown root:root "${HAPROXY_CFG}"
+run "Restoring SELinux context for HAProxy configuration" restorecon -RvF "${HAPROXY_CFG}" 2>/dev/null
 
 if [[ -f "${UNKNOWN_BACKEND_DEST}" ]] && cmp -s "${UNKNOWN_BACKEND_SRC}" "${UNKNOWN_BACKEND_DEST}"; then
 
@@ -336,6 +337,7 @@ fi
 
 run "Setting HAProxy unknown host backend configuration permissions" chmod 0644 "${UNKNOWN_BACKEND_DEST}"
 run "Setting HAProxy unknown host backend configuration ownership" chown root:root "${UNKNOWN_BACKEND_DEST}"
+run "Restoring SELinux context for backend configuration" restorecon -RvF "${UNKNOWN_BACKEND_DEST}" 2>/dev/null
 
 ###############################################################################
 # Jinja2 install
@@ -387,6 +389,7 @@ fi
 
 run "Setting Global frontend configuration permissions" chmod 0644 "${GLOBAL_FRONTEND_DEST}"
 run "Setting Global frontend configuration ownership" chown root:root "${GLOBAL_FRONTEND_DEST}"
+run "Restoring SELinux context for global frontend configuration" restorecon -RvF "${GLOBAL_FRONTEND_DEST}" 2>/dev/null
 
 ###############################################################################
 # Render global backend configuration
@@ -430,6 +433,7 @@ fi
 
 run "Setting Global backend configuration permissions" chmod 0644 "${GLOBAL_BACKEND_DEST}"
 run "Setting Global backend configuration ownership" chown root:root "${GLOBAL_BACKEND_DEST}"
+run "Restoring SELinux context for global backend configuration" restorecon -RvF "${GLOBAL_BACKEND_DEST}" 2>/dev/null
 
 ###############################################################################
 # Render HAProxy portal backend config
@@ -469,6 +473,7 @@ fi
 
 run "Setting Portal backend configuration permissions" chmod 0644 "${PORTAL_BACKEND_DEST}"
 run "Setting Portal backend configuration ownership" chown root:root "${PORTAL_BACKEND_DEST}"
+run "Restoring SELinux context for portal backend configuration" restorecon -RvF "${PORTAL_BACKEND_DEST}" 2>/dev/null
 
 ###############################################################################
 # Remove Jinja2
@@ -492,6 +497,7 @@ fi
 
 run "Setting TLS certificate permissions" chmod 0600 "${CERT_DEST}"
 run "Setting TLS certificate ownership" chown root:root "${CERT_DEST}"
+run "Restoring SELinux context for SSL certificate" restorecon -RvF "${CERT_DEST}" 2>/dev/null
 
 ###############################################################################
 # Escape portal URL for regex operations

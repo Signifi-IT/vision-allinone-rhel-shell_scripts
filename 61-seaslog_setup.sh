@@ -369,6 +369,7 @@ fi
 
 run "Setting SeasLog PHP INI permissions" chmod 0644 "${SEASLOG_INI}"
 run "Setting SeasLog PHP INI ownership" chown root:root "${SEASLOG_INI}"
+run "Restoring SELinux context for SeasLog configuration" restorecon -RvF "${SEASLOG_INI}" 2>/dev/null
 
 ###############################################################################
 # Create SeasLog log directories

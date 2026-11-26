@@ -669,6 +669,7 @@ fi
 
 run "Setting Apache virtual host configuration permissions" chmod 0644 "${SITE_CONFIG}"
 run "Setting Apache virtual host configuration ownership" chown root:root "${SITE_CONFIG}"
+run "Restoring SELinux context for site configuration" restorecon -RvF "${SITE_CONFIG}" 2>/dev/null
 
 ###############################################################################
 # Apache log directory
@@ -738,6 +739,7 @@ fi
 
 run "Setting Portal backend configuration permissions" chmod 0644 "${PORTAL_BACKEND_DEST}"
 run "Setting Portal backend configuration ownership" chown root:root "${PORTAL_BACKEND_DEST}"
+run "Restoring SELinux context for portal backend configuration" restorecon -RvF "${PORTAL_BACKEND_DEST}" 2>/dev/null
 
 ###############################################################################
 # Remove Jinja2
@@ -761,6 +763,7 @@ fi
 
 run "Setting TLS certificate permissions" chmod 0600 "${CERT_DEST}"
 run "Setting TLS certificate ownership" chown root:root "${CERT_DEST}"
+run "Restoring SELinux context for SSL certificate" restorecon -RvF "${CERT_DEST}" 2>/dev/null
 
 ###############################################################################
 # Escape portal URL for regex operations

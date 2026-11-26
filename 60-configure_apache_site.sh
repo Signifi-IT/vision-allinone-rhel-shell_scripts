@@ -309,6 +309,8 @@ fi
 run "Setting Apache virtual host configuration permissions" chmod 0644 "${SITE_CONFIG}"
 run "Setting Apache virtual host configuration ownership" chown root:root "${SITE_CONFIG}"
 
+run "Restoring SELinux context for site configuration" restorecon -RvF "${SITE_CONFIG}" 2>/dev/null
+
 ###############################################################################
 # Remove Jinja2
 ###############################################################################
@@ -331,6 +333,8 @@ fi
 
 run "Setting Apache log directory ownership" chown root:root "${APACHE_LOG_DIR}"
 run "Setting Apache log directory permissions" chmod 0755 "${APACHE_LOG_DIR}"
+
+run "Restoring SELinux context for Apache logs" restorecon -RvF "${APACHE_LOG_DIR}" 2>/dev/null
 
 ###############################################################################
 # Comment default DocumentRoot

@@ -389,6 +389,7 @@ fi
 
 run "Setting PeerJS HAProxy backend configuration permissions" chmod 0644 "${PEERJS_HAPROXY_CFG}"
 run "Setting PeerJS HAProxy backend configuration ownership" chown root:root "${PEERJS_HAPROXY_CFG}"
+run "Restoring SELinux context for PeerJS HAProxy configuration" restorecon -RvF "${PEERJS_HAPROXY_CFG}" 2>/dev/null
 
 ###############################################################################
 # Remove Jinja2
@@ -412,6 +413,7 @@ fi
 
 run "Setting PeerJS TLS certificate permissions" chmod 0600 "${CERT_DEST}"
 run "Setting PeerJS TLS certificate ownership" chown root:root "${CERT_DEST}"
+run "Restoring SELinux context for SSL certificate" restorecon -RvF "${PEERJS_HAPROXY_CFG}" 2>/dev/null
 
 ###############################################################################
 # Escape PeerJS portal URL for regex operations

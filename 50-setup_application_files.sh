@@ -322,11 +322,11 @@ backup_file_if_needed "${PHP_WWW_CONF_DEST}"
 run "Deploying php.ini" cp -raf "${PHP_INI_SOURCE}" "${PHP_INI_DEST}"
 run "Deploying www.conf" cp -raf "${PHP_WWW_CONF_SOURCE}" "${PHP_WWW_CONF_DEST}"
 
-chmod 0644 "${PHP_INI_DEST}" "${PHP_WWW_CONF_DEST}"
-chown root:root "${PHP_INI_DEST}" "${PHP_WWW_CONF_DEST}"
+run "Setting PHP configuration permissions" chmod 0644 "${PHP_INI_DEST}" "${PHP_WWW_CONF_DEST}"
+run "Setting PHP configuration ownership" chown root:root "${PHP_INI_DEST}" "${PHP_WWW_CONF_DEST}"
 
-restorecon -v /etc/php.ini
-restorecon -v /etc/php-fpm.d/www.conf
+run "Restoring SELinux context for php.ini" restorecon -RvF "${PHP_INI_DEST}" 2>/dev/null
+run "Restoring SELinux context for www.conf" restorecon -RvF "${PHP_WWW_CONF_DEST}" 2>/dev/null
 
 run "Validating PHP-FPM configuration" php-fpm -t
 
