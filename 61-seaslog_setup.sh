@@ -1,6 +1,5 @@
 #!/bin/bash
 
-
 ###############################################################################
 # Description:
 #   Installs and configures the SeasLog PHP extension on RHEL-based systems:
@@ -37,7 +36,6 @@
 #     - Removes temporary SeasLog source archives and package metadata files
 #     - Removes the saved PECL version after successful installation
 ###############################################################################
-
 
 set -Eeuo pipefail
 set -o errtrace

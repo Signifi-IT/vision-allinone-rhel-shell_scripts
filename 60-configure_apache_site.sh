@@ -1,6 +1,5 @@
 #!/bin/bash
 
-
 ###############################################################################
 # Description:
 #   Configures Apache HTTPD for the Vision application on RHEL-based systems:
@@ -27,7 +26,6 @@
 #     - Validates Apache configuration syntax
 #     - Enables and restarts Apache HTTPD service
 ###############################################################################
-
 
 set -Eeuo pipefail
 set -o errtrace

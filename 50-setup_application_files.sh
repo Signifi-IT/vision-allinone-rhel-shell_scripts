@@ -1,6 +1,5 @@
 #!/bin/bash
 
-
 ###############################################################################
 # Description:
 #   Deploys the Vision application from Git repositories on RHEL-based systems:
@@ -21,7 +20,6 @@
 #     - Validates PHP-FPM configuration
 #     - Enables and restarts PHP-FPM service
 ###############################################################################
-
 
 set -Eeuo pipefail
 set -o errtrace

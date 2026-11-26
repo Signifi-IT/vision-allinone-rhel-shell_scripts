@@ -20,7 +20,6 @@
 #     - Removes the temporary VC API repository after successful deployment
 ###############################################################################
 
-
 set -Eeuo pipefail
 set -o errtrace
 

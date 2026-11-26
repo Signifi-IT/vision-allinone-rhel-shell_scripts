@@ -2,8 +2,7 @@
 
 ###############################################################################
 # Description:
-#   Configures SELinux contexts and filesystem permissions for Vision
-#   application directories on RHEL-based systems:
+#   Configures SELinux contexts and filesystem permissions for Vision application directories on RHEL-based systems:
 #     - Requires root privileges
 #     - Logs all operations to /var/log/vision_deployment.log
 #     - Requires --answer-file argument to load the desired answer file
@@ -25,7 +24,6 @@
 #     - Enables required SELinux booleans for Apache, HAProxy, and syslog
 #     - Persists required SELinux boolean settings across system reboots
 #     - Verifies that required SELinux booleans are enabled
-#     - Restores SELinux contexts recursively across the entire root filesystem (/)
 ###############################################################################
 
 set -Eeuo pipefail
@@ -307,12 +305,6 @@ for bool in "${SEBOOLS[@]}"; do
 
     log "SELinux boolean verified enabled: ${bool}"
 done
-
-# ---------------------------------------------------------------------------
-# Restore SELinux contexts across the entire filesystem
-# ---------------------------------------------------------------------------
-
-restorecon -RvF / 2>/dev/null
 
 ###############################################################################
 # Completion

@@ -1,6 +1,5 @@
 #!/bin/bash
 
-
 ###############################################################################
 # Description:
 #   Deploys the PeerJS real-time communication service and integrates it with
@@ -39,7 +38,6 @@
 #     - Enables and restarts the HAProxy service
 #     - Adds or updates the PeerJS portal entry in /etc/hosts
 ###############################################################################
-
 
 set -Eeuo pipefail
 set -o errtrace

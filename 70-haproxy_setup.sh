@@ -1,6 +1,5 @@
 #!/bin/bash
 
-
 ###############################################################################
 # Description:
 #   Configures HAProxy and rsyslog for the Vision application on RHEL-based systems:
@@ -31,7 +30,6 @@
 #     - Restarts and enables the HAProxy service
 #     - Adds or updates the portal entry in /etc/hosts
 ###############################################################################
-
 
 set -Eeuo pipefail
 set -o errtrace
