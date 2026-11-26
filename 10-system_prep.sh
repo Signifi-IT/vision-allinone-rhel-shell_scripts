@@ -151,6 +151,8 @@ chown root:root /etc/profile.d/editor.sh
 # Reboot
 ###############################################################################
 
+journalctl --sync && sync
+
 warn "System reboot scheduled in 1 minute (60 seconds)..."
 shutdown -r +1 "Rebooting to apply updates..."
 

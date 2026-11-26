@@ -325,6 +325,9 @@ run "Deploying www.conf" cp -raf "${PHP_WWW_CONF_SOURCE}" "${PHP_WWW_CONF_DEST}"
 chmod 0644 "${PHP_INI_DEST}" "${PHP_WWW_CONF_DEST}"
 chown root:root "${PHP_INI_DEST}" "${PHP_WWW_CONF_DEST}"
 
+restorecon -v /etc/php.ini
+restorecon -v /etc/php-fpm.d/www.conf
+
 run "Validating PHP-FPM configuration" php-fpm -t
 
 ###############################################################################
