@@ -16,8 +16,10 @@
 #     - Copies the VC API repository contents to /var/www/${PORTAL_URL}/api/
 #     - Sets the destination API directory permissions to 0755
 #     - Sets recursive ownership of the destination API directory to root:apache
+#     - Restores SELinux contexts recursively for the destination VC API directory
 #     - Removes the temporary VC API repository after successful deployment
 ###############################################################################
+
 
 set -Eeuo pipefail
 set -o errtrace
@@ -243,6 +245,7 @@ run "Copying VC API repository content to ${VC_API_DIR}" \
 
 run "Setting VC API directory permissions" chmod 0755 "${VC_API_DIR}"
 run "Setting VC API ownership recursively" chown -R root:apache "${VC_API_DIR}"
+run "Restoring SELinux contexts for VC API directory" restorecon -RvF "${VC_API_DIR}" 2>/dev/null
 
 ###############################################################################
 # Remove temporary clone

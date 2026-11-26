@@ -1,5 +1,6 @@
 #!/bin/bash
 
+
 ###############################################################################
 # Description:
 #   Configures Apache HTTPD for the Vision application on RHEL-based systems:
@@ -16,13 +17,17 @@
 #     - Installs Jinja2 to render virtual host configuration
 #     - Generates Apache virtual host configuration from Jinja2 template
 #     - Deploys Apache virtual host configuration only when missing or changed
+#     - Sets Apache virtual host configuration permissions and ownership
+#     - Restores SELinux context for Apache virtual host configuration
 #     - Removes Jinja2 after rendering virtual host configuration
 #     - Creates and configures application-specific Apache log directory when missing
+#     - Restores SELinux contexts for the application-specific Apache log directory
 #     - Comments default DocumentRoot in main Apache configuration when uncommented
 #     - Configures SELinux HTTP port mapping for 7080 when missing
 #     - Validates Apache configuration syntax
 #     - Enables and restarts Apache HTTPD service
 ###############################################################################
+
 
 set -Eeuo pipefail
 set -o errtrace

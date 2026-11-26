@@ -1,5 +1,6 @@
 #!/bin/bash
 
+
 ###############################################################################
 # Description:
 #   Deploys the PeerJS real-time communication service and integrates it with
@@ -19,20 +20,26 @@
 #     - Sets PeerJS application ownership and permissions
 #     - Restores executable permissions for the PeerJS CLI entrypoint
 #     - Creates or updates a native systemd service for PeerJS
+#     - Sets PeerJS systemd service file permissions and ownership
+#     - Restores SELinux context for the PeerJS systemd service file when deployed
 #     - Enables and restarts the PeerJS systemd service
 #     - Validates that PeerJS is listening on TCP/9000
 #     - Uses the HAProxy directories and hosts.map created by the HAProxy setup script
 #     - Installs Jinja2 to render HAProxy backend configuration
 #     - Renders the PeerJS HAProxy backend configuration from a Jinja2 template
 #     - Deploys the rendered PeerJS HAProxy backend configuration only when missing or changed
+#     - Restores SELinux context for the PeerJS HAProxy backend configuration
 #     - Removes Jinja2 after rendering HAProxy backend configuration
 #     - Installs the PeerJS TLS certificate only when missing or changed
+#     - Sets TLS certificate ownership to root:root and permissions to 0600
+#     - Restores SELinux context for the PeerJS TLS certificate
 #     - Escapes the PeerJS portal URL for safe regex-based file updates
 #     - Updates HAProxy hosts.map with the PeerJS backend routing entry
 #     - Validates the HAProxy configuration
 #     - Enables and restarts the HAProxy service
 #     - Adds or updates the PeerJS portal entry in /etc/hosts
 ###############################################################################
+
 
 set -Eeuo pipefail
 set -o errtrace

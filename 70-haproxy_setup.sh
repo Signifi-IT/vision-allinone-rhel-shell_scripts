@@ -1,5 +1,6 @@
 #!/bin/bash
 
+
 ###############################################################################
 # Description:
 #   Configures HAProxy and rsyslog for the Vision application on RHEL-based systems:
@@ -15,17 +16,22 @@
 #     - Configures rsyslog for HAProxy UDP/local0 logging
 #     - Ensures the HAProxy log file exists with proper ownership and permissions
 #     - Deploys HAProxy base configuration files only when missing or changed
+#     - Restores SELinux contexts for HAProxy base configuration files
 #     - Installs Jinja2 to render HAProxy configuration templates
 #     - Renders HAProxy global frontend, global backend, and portal backend configs
 #     - Deploys rendered HAProxy configuration files only when missing or changed
+#     - Restores SELinux contexts for rendered HAProxy configuration files
 #     - Removes Jinja2 after rendering HAProxy configuration
 #     - Installs the TLS certificate only when missing or changed
+#     - Sets TLS certificate ownership to root:root and permissions to 0600
+#     - Restores SELinux context for the TLS certificate
 #     - Escapes the portal URL for safe regex-based file updates
 #     - Updates HAProxy hosts.map with the portal backend routing entry
 #     - Validates the HAProxy configuration
 #     - Restarts and enables the HAProxy service
 #     - Adds or updates the portal entry in /etc/hosts
 ###############################################################################
+
 
 set -Eeuo pipefail
 set -o errtrace

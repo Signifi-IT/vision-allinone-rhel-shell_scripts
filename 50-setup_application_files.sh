@@ -1,5 +1,6 @@
 #!/bin/bash
 
+
 ###############################################################################
 # Description:
 #   Deploys the Vision application from Git repositories on RHEL-based systems:
@@ -15,9 +16,12 @@
 #     - Creates required application session directories on initial deployment
 #     - Removes temporary repository working directories after initial deployment
 #     - Backs up and deploys PHP configuration files (php.ini, www.conf)
+#     - Sets PHP configuration file permissions to 0644 and ownership to root:root
+#     - Restores SELinux contexts for php.ini and www.conf using restorecon
 #     - Validates PHP-FPM configuration
 #     - Enables and restarts PHP-FPM service
 ###############################################################################
+
 
 set -Eeuo pipefail
 set -o errtrace

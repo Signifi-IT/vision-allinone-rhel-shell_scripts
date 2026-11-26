@@ -26,8 +26,12 @@
 #     - Installs Jinja2 to render HAProxy backend configuration
 #     - Renders the PeerJS HAProxy backend configuration from a Jinja2 template
 #     - Deploys the rendered PeerJS HAProxy backend configuration only when missing or changed
+#     - Sets HAProxy backend configuration permissions and ownership
+#     - Restores SELinux context for the PeerJS HAProxy backend configuration
 #     - Removes Jinja2 after rendering HAProxy backend configuration
 #     - Installs the PeerJS TLS certificate only when missing or changed
+#     - Sets TLS certificate ownership to root:root and permissions to 0600
+#     - Restores SELinux context for the PeerJS TLS certificate
 #     - Escapes the PeerJS portal URL for safe regex-based file updates
 #     - Updates HAProxy hosts.map with the PeerJS backend routing entry
 #     - Validates the HAProxy configuration
@@ -413,7 +417,7 @@ fi
 
 run "Setting PeerJS TLS certificate permissions" chmod 0600 "${CERT_DEST}"
 run "Setting PeerJS TLS certificate ownership" chown root:root "${CERT_DEST}"
-run "Restoring SELinux context for SSL certificate" restorecon -RvF "${PEERJS_HAPROXY_CFG}" 2>/dev/null
+run "Restoring SELinux context for SSL certificate" restorecon -RvF "${CERT_DEST}" 2>/dev/null
 
 ###############################################################################
 # Escape PeerJS portal URL for regex operations

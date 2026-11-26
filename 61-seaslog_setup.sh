@@ -1,5 +1,6 @@
 #!/bin/bash
 
+
 ###############################################################################
 # Description:
 #   Installs and configures the SeasLog PHP extension on RHEL-based systems:
@@ -20,6 +21,8 @@
 #     - Builds and installs SeasLog when seaslog.so is missing or cannot be loaded
 #     - Validates SeasLog module file existence, ownership, and permissions
 #     - Creates or updates the SeasLog PHP INI configuration when changed
+#     - Sets SeasLog PHP INI configuration permissions and ownership
+#     - Restores SELinux context for the SeasLog PHP INI configuration
 #     - Cleans up temporary PHP INI files on exit
 #     - Creates required SeasLog log directories with apache ownership
 #     - Configures SELinux file context rules for SeasLog log directories
@@ -34,6 +37,7 @@
 #     - Removes temporary SeasLog source archives and package metadata files
 #     - Removes the saved PECL version after successful installation
 ###############################################################################
+
 
 set -Eeuo pipefail
 set -o errtrace

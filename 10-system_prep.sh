@@ -1,5 +1,6 @@
 #!/bin/bash
 
+
 ###############################################################################
 # Description:
 #   Performs system maintenance and configuration on RHEL-based systems:
@@ -10,8 +11,10 @@
 #     - Performs a full system upgrade
 #     - Removes unused packages
 #     - Configures Vim as the default system editor
+#     - Synchronizes journald logs and filesystem writes before reboot
 #     - Schedules a system reboot in 1 minute to apply changes
 ###############################################################################
+
 
 set -Eeuo pipefail
 set -o errtrace

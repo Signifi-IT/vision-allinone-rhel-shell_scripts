@@ -1,5 +1,6 @@
 #!/bin/bash
 
+
 ###############################################################################
 # Description:
 #   Adds a new Vision application portal to an already configured application
@@ -28,20 +29,26 @@
 #     - Installs Jinja2 to render Apache and HAProxy configuration templates
 #     - Renders Apache virtual host configuration from a Jinja2 template
 #     - Deploys Apache virtual host configuration only when missing or changed
+#     - Sets Apache virtual host configuration permissions and ownership
+#     - Restores SELinux context for the Apache virtual host configuration
 #     - Creates and configures application-specific Apache log directory
 #     - Validates Apache configuration syntax
 #     - Enables and restarts Apache HTTPD service
 #     - Uses the HAProxy directories and hosts.map created by the HAProxy setup script
 #     - Renders HAProxy portal backend configuration from a Jinja2 template
 #     - Deploys HAProxy portal backend configuration only when missing or changed
+#     - Restores SELinux context for the HAProxy portal backend configuration
 #     - Removes Jinja2 after rendering templates
 #     - Installs the TLS certificate only when missing or changed
+#     - Sets TLS certificate ownership to root:root and permissions to 0600
+#     - Restores SELinux context for the TLS certificate
 #     - Escapes the portal URL for safe regex-based file updates
 #     - Updates HAProxy hosts.map with the portal backend routing entry
 #     - Validates the HAProxy configuration
 #     - Enables and restarts the HAProxy service
 #     - Adds or updates the portal entry in /etc/hosts
 ###############################################################################
+
 
 set -Eeuo pipefail
 set -o errtrace
