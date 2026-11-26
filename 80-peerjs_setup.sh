@@ -96,11 +96,11 @@ TEMP_PEERJS_HAPROXY_CFG=""
 
 cleanup() {
     if [[ -n "${TEMP_PEERJS_SERVICE_FILE:-}" && -f "${TEMP_PEERJS_SERVICE_FILE}" ]]; then
-        rm -f "${TEMP_PEERJS_SERVICE_FILE}"
+        rm -rf "${TEMP_PEERJS_SERVICE_FILE}"
     fi
 
     if [[ -n "${TEMP_PEERJS_HAPROXY_CFG:-}" && -f "${TEMP_PEERJS_HAPROXY_CFG}" ]]; then
-        rm -f "${TEMP_PEERJS_HAPROXY_CFG}"
+        rm -rf "${TEMP_PEERJS_HAPROXY_CFG}"
     fi
 }
 
@@ -323,7 +323,7 @@ if [[ -f "${PEERJS_SERVICE_FILE}" ]] && cmp -s "${TEMP_PEERJS_SERVICE_FILE}" "${
 else
 
     log "Deploying PeerJS systemd service file: ${PEERJS_SERVICE_FILE}"
-    cp -f "${TEMP_PEERJS_SERVICE_FILE}" "${PEERJS_SERVICE_FILE}"
+    cp -raf "${TEMP_PEERJS_SERVICE_FILE}" "${PEERJS_SERVICE_FILE}"
     run "Setting PeerJS systemd service file permissions" chmod 0644 "${PEERJS_SERVICE_FILE}"
     run "Setting PeerJS systemd service file ownership" chown root:root "${PEERJS_SERVICE_FILE}"
 
@@ -388,7 +388,7 @@ if [[ -f "${PEERJS_HAPROXY_CFG}" ]] && cmp -s "${TEMP_PEERJS_HAPROXY_CFG}" "${PE
 else
 
     log "Deploying PeerJS HAProxy backend configuration: ${PEERJS_HAPROXY_CFG}"
-    cp -f "${TEMP_PEERJS_HAPROXY_CFG}" "${PEERJS_HAPROXY_CFG}"
+    cp -raf "${TEMP_PEERJS_HAPROXY_CFG}" "${PEERJS_HAPROXY_CFG}"
 
 fi
 
@@ -411,7 +411,7 @@ if [[ -f "${CERT_DEST}" ]] && cmp -s "${CERT_PATH}" "${CERT_DEST}"; then
 
 else
 
-    run "Installing PeerJS TLS certificate" cp -f "${CERT_PATH}" "${CERT_DEST}"
+    run "Installing PeerJS TLS certificate" cp -raf "${CERT_PATH}" "${CERT_DEST}"
 
 fi
 

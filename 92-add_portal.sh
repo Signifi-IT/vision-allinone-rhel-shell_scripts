@@ -105,11 +105,11 @@ TEMP_PORTAL_BACKEND_CONFIG=""
 
 cleanup() {
     if [[ -n "${TEMP_SITE_CONFIG:-}" && -f "${TEMP_SITE_CONFIG}" ]]; then
-        rm -f "${TEMP_SITE_CONFIG}"
+        rm -rf "${TEMP_SITE_CONFIG}"
     fi
 
     if [[ -n "${TEMP_PORTAL_BACKEND_CONFIG:-}" && -f "${TEMP_PORTAL_BACKEND_CONFIG}" ]]; then
-        rm -f "${TEMP_PORTAL_BACKEND_CONFIG}"
+        rm -rf "${TEMP_PORTAL_BACKEND_CONFIG}"
     fi
 }
 
@@ -568,7 +568,7 @@ else
 
         mkdir -p "${DEST}"
 
-        cp -a "${SOURCE}/." "${DEST}/"
+        cp -raf "${SOURCE}/." "${DEST}/"
 
         chmod 0755 "${DEST}"
         chown -R root:apache "${DEST}"
@@ -657,13 +657,13 @@ EOF
 if [[ -f "${SITE_CONFIG}" ]] && cmp -s "${TEMP_SITE_CONFIG}" "${SITE_CONFIG}"; then
 
     log "Apache virtual host configuration already up to date: ${SITE_CONFIG}"
-    rm -f "${TEMP_SITE_CONFIG}"
+    rm -rf "${TEMP_SITE_CONFIG}"
 
 else
 
     log "Deploying Apache virtual host configuration: ${SITE_CONFIG}"
-    cp -f "${TEMP_SITE_CONFIG}" "${SITE_CONFIG}"
-    rm -f "${TEMP_SITE_CONFIG}"
+    cp -raf "${TEMP_SITE_CONFIG}" "${SITE_CONFIG}"
+    rm -rf "${TEMP_SITE_CONFIG}"
 
 fi
 
@@ -725,14 +725,14 @@ EOF
 if [[ -f "${PORTAL_BACKEND_DEST}" ]] && cmp -s "${TEMP_PORTAL_BACKEND_CONFIG}" "${PORTAL_BACKEND_DEST}"; then
 
     log "Portal backend configuration already up to date: ${PORTAL_BACKEND_DEST}"
-    rm -f "${TEMP_PORTAL_BACKEND_CONFIG}"
+    rm -rf "${TEMP_PORTAL_BACKEND_CONFIG}"
 
 else
 
     log "Deploying Portal backend configuration: ${PORTAL_BACKEND_DEST}"
 
-    cp -f "${TEMP_PORTAL_BACKEND_CONFIG}" "${PORTAL_BACKEND_DEST}"
-    rm -f "${TEMP_PORTAL_BACKEND_CONFIG}"
+    cp -raf "${TEMP_PORTAL_BACKEND_CONFIG}" "${PORTAL_BACKEND_DEST}"
+    rm -rf "${TEMP_PORTAL_BACKEND_CONFIG}"
 
 fi
 
@@ -755,7 +755,7 @@ if [[ -f "${CERT_DEST}" ]] && cmp -s "${CERT_PATH}" "${CERT_DEST}"; then
 
 else
 
-    run "Installing TLS certificate" cp -f "${CERT_PATH}" "${CERT_DEST}"
+    run "Installing TLS certificate" cp -raf "${CERT_PATH}" "${CERT_DEST}"
 
 fi
 

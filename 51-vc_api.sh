@@ -78,7 +78,8 @@ Usage:
   bash $(basename "$0") --answer-file <filepath>.txt
 
 Example:
-  bash $(basename "$0") --answer-file /tmp/scripts/answers-vc_api.txt
+  bash $(basename "$0") --answer-file /tmp/scripts/answers.txt
+  bash $(basename "$0") --answer-file /tmp/scripts/answers-add_portal.txt
 EOF
 }
 
@@ -140,12 +141,20 @@ if ! source "${CONFIG_FILE}"; then
 fi
 
 ###############################################################################
+# Constants
+###############################################################################
+
+APP_DIR="/var/www/${PORTAL_URL}"
+VC_REPO="git@bitbucket.org:teamsignifi/vc-api.git"
+VC_BRANCH="release"
+TEMP_VC_DIR="/var/www/vc_api"
+VC_API_DIR="${APP_DIR}/api"
+
+###############################################################################
 # Validate required variables and SSH key
 ###############################################################################
 
 REQUIRED_VARS=(
-    VC_URL
-    VC_BRANCH
     PORTAL_URL
     BITBUCKET_KEY
 )
@@ -156,37 +165,6 @@ for var in "${REQUIRED_VARS[@]}"; do
         exit 1
     fi
 done
-
-# # Keep the repository and destination paths confined to /var/www.
-# if [[ "${PORTAL_URL}" == '.' || "${PORTAL_URL}" == '..' ||
-#       ! "${PORTAL_URL}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
-#     error "Invalid PORTAL_URL directory name: ${PORTAL_URL}"
-#     exit 1
-# fi
-
-# if [[ ! -f "${BITBUCKET_KEY}" ]]; then
-#     error "Required Bitbucket SSH key not found: ${BITBUCKET_KEY}"
-#     exit 1
-# fi
-
-# for command in git ssh mktemp cp chmod chown rm; do
-#     if ! command -v "${command}" >/dev/null 2>&1; then
-#         error "Required command not found: ${command}"
-#         exit 1
-#     fi
-# done
-
-# ###############################################################################
-# # Target directory
-# ###############################################################################
-
-# APP_DIR="/var/www/${PORTAL_URL}"
-# VC_API_DIR="${APP_DIR}/api"
-
-# if [[ ! -d "${APP_DIR}" ]]; then
-#     error "Portal directory does not exist: ${APP_DIR}"
-#     exit 1
-# fi
 
 ###############################################################################
 # Validate required files
@@ -204,12 +182,19 @@ for file in "${REQUIRED_FILES[@]}"; do
 done
 
 ###############################################################################
-# Constants
+# Validate required directories
 ###############################################################################
 
-VC_DIR="/var/www/vc_api"
-APP_DIR="/var/www/${PORTAL_URL}"
-VC_API_DIR="${APP_DIR}/api"
+REQUIRED_DIRS=(
+    "${APP_DIR}"
+)
+
+for dir in "${REQUIRED_DIRS[@]}"; do
+    if [[ ! -d "${dir}" ]]; then
+        error "Required directory not found: ${dir}"
+        exit 1
+    fi
+done
 
 ###############################################################################
 # Git SSH configuration
@@ -239,16 +224,16 @@ clone_repo() {
 }
 
 clone_repo \
-    "${VC_URL}" \
+    "${VC_REPO}" \
     "${VC_BRANCH}" \
-    "${VC_DIR}"
+    "${TEMP_VC_DIR}"
 
 ###############################################################################
 # Deploy VC API content
 ###############################################################################
 
 run "Copying VC API repository content to ${VC_API_DIR}" \
-    cp -a "${VC_DIR}/." "${VC_API_DIR}/"
+    cp -raf "${TEMP_VC_DIR}/." "${VC_API_DIR}/"
 
 run "Setting VC API directory permissions" chmod 0755 "${VC_API_DIR}"
 run "Setting VC API ownership recursively" chown -R root:apache "${VC_API_DIR}"
@@ -257,7 +242,7 @@ run "Setting VC API ownership recursively" chown -R root:apache "${VC_API_DIR}"
 # Remove temporary clone
 ###############################################################################
 
-run "Removing temporary VC API clone" rm -rf "${VC_DIR}"
+run "Removing temporary VC API clone" rm -rf "${TEMP_VC_DIR}"
 
 ###############################################################################
 # Completion

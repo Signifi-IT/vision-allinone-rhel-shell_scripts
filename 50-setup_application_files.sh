@@ -164,7 +164,7 @@ backup_file_if_needed() {
     fi
 
     log "Creating backup: ${backup}"
-    cp -p "${file}" "${backup}"
+    cp -raf "${file}" "${backup}"
 }
 
 ###############################################################################
@@ -262,7 +262,7 @@ else
 
         mkdir -p "${DEST}"
 
-        cp -a "${SOURCE}/." "${DEST}/"
+        cp -raf "${SOURCE}/." "${DEST}/"
 
         chmod 0755 "${DEST}"
         chown -R root:apache "${DEST}"
@@ -319,8 +319,8 @@ fi
 backup_file_if_needed "${PHP_INI_DEST}"
 backup_file_if_needed "${PHP_WWW_CONF_DEST}"
 
-run "Deploying php.ini" cp -f "${PHP_INI_SOURCE}" "${PHP_INI_DEST}"
-run "Deploying www.conf" cp -f "${PHP_WWW_CONF_SOURCE}" "${PHP_WWW_CONF_DEST}"
+run "Deploying php.ini" cp -raf "${PHP_INI_SOURCE}" "${PHP_INI_DEST}"
+run "Deploying www.conf" cp -raf "${PHP_WWW_CONF_SOURCE}" "${PHP_WWW_CONF_DEST}"
 
 chmod 0644 "${PHP_INI_DEST}" "${PHP_WWW_CONF_DEST}"
 chown root:root "${PHP_INI_DEST}" "${PHP_WWW_CONF_DEST}"

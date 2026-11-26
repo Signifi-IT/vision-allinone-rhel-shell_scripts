@@ -84,7 +84,7 @@ TEMP_SITE_CONFIG=""
 
 cleanup() {
     if [[ -n "${TEMP_SITE_CONFIG:-}" && -f "${TEMP_SITE_CONFIG}" ]]; then
-        rm -f "${TEMP_SITE_CONFIG}"
+        rm -rf "${TEMP_SITE_CONFIG}"
     fi
 }
 
@@ -169,7 +169,7 @@ backup_file_if_needed() {
     fi
 
     log "Creating backup: ${backup}"
-    cp -p "${file}" "${backup}"
+    cp -raf "${file}" "${backup}"
 }
 
 ###############################################################################
@@ -189,7 +189,7 @@ for file in "${DEFAULT_CONFS[@]}"; do
     if [[ -f "/etc/httpd/conf.d/${file}" ]]; then
 
         run "Removing ${file}" \
-            rm -f "/etc/httpd/conf.d/${file}"
+            rm -rf "/etc/httpd/conf.d/${file}"
 
     fi
 
@@ -294,14 +294,14 @@ EOF
 if [[ -f "${SITE_CONFIG}" ]] && cmp -s "${TEMP_SITE_CONFIG}" "${SITE_CONFIG}"; then
 
     log "Apache virtual host configuration already up to date: ${SITE_CONFIG}"
-    rm -f "${TEMP_SITE_CONFIG}"
+    rm -rf "${TEMP_SITE_CONFIG}"
 
 else
 
     log "Deploying Apache virtual host configuration: ${SITE_CONFIG}"
 
-    cp -f "${TEMP_SITE_CONFIG}" "${SITE_CONFIG}"
-    rm -f "${TEMP_SITE_CONFIG}"
+    cp -raf "${TEMP_SITE_CONFIG}" "${SITE_CONFIG}"
+    rm -rf "${TEMP_SITE_CONFIG}"
 
 fi
 

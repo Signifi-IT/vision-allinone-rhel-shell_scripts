@@ -255,7 +255,7 @@ for component in media api mobile; do
 
     mkdir -p "${DEST}"
 
-    cp -a "${SOURCE}/." "${DEST}/"
+    cp -raf "${SOURCE}/." "${DEST}/"
 
     chmod 0755 "${DEST}"
     chown -R root:apache "${DEST}"

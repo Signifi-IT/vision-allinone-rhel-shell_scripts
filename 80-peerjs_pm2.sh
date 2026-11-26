@@ -96,7 +96,7 @@ TEMP_PEERJS_HAPROXY_CFG=""
 
 cleanup() {
     if [[ -n "${TEMP_PEERJS_HAPROXY_CFG:-}" && -f "${TEMP_PEERJS_HAPROXY_CFG}" ]]; then
-        rm -f "${TEMP_PEERJS_HAPROXY_CFG}"
+        rm -rf "${TEMP_PEERJS_HAPROXY_CFG}"
     fi
 }
 
@@ -376,14 +376,14 @@ EOF
 if [[ -f "${PEERJS_HAPROXY_CFG}" ]] && cmp -s "${TEMP_PEERJS_HAPROXY_CFG}" "${PEERJS_HAPROXY_CFG}"; then
 
     log "PeerJS HAProxy backend configuration already up to date: ${PEERJS_HAPROXY_CFG}"
-    rm -f "${TEMP_PEERJS_HAPROXY_CFG}"
+    rm -rf "${TEMP_PEERJS_HAPROXY_CFG}"
 
 else
 
     log "Deploying PeerJS HAProxy backend configuration: ${PEERJS_HAPROXY_CFG}"
 
-    cp -f "${TEMP_PEERJS_HAPROXY_CFG}" "${PEERJS_HAPROXY_CFG}"
-    rm -f "${TEMP_PEERJS_HAPROXY_CFG}"
+    cp -raf "${TEMP_PEERJS_HAPROXY_CFG}" "${PEERJS_HAPROXY_CFG}"
+    rm -rf "${TEMP_PEERJS_HAPROXY_CFG}"
 
 fi
 
@@ -406,7 +406,7 @@ if [[ -f "${CERT_DEST}" ]] && cmp -s "${CERT_PATH}" "${CERT_DEST}"; then
 
 else
 
-    run "Installing PeerJS TLS certificate" cp -f "${CERT_PATH}" "${CERT_DEST}"
+    run "Installing PeerJS TLS certificate" cp -raf "${CERT_PATH}" "${CERT_DEST}"
 
 fi
 

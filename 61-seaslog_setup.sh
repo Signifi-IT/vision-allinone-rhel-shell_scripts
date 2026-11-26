@@ -56,7 +56,7 @@ TEMP_SEASLOG_INI=""
 
 cleanup() {
     if [[ -n "${TEMP_SEASLOG_INI:-}" && -f "${TEMP_SEASLOG_INI}" ]]; then
-        rm -f "${TEMP_SEASLOG_INI}"
+        rm -rf "${TEMP_SEASLOG_INI}"
     fi
 }
 
@@ -241,7 +241,7 @@ if [[ "${SEASLOG_INSTALL_REQUIRED}" -eq 1 ]]; then
             log "SeasLog source archive already exists and is valid: ${SEASLOG_ARCHIVE_PATH}"
         else
             warn "SeasLog source archive is invalid or incomplete: ${SEASLOG_ARCHIVE_PATH}"
-            run "Removing invalid SeasLog source archive" rm -f "${SEASLOG_ARCHIVE_PATH}"
+            run "Removing invalid SeasLog source archive" rm -rf "${SEASLOG_ARCHIVE_PATH}"
         fi
     fi
 
@@ -348,11 +348,11 @@ EOF_INI
 
 if [[ -f "${SEASLOG_INI}" ]] && cmp -s "${TEMP_SEASLOG_INI}" "${SEASLOG_INI}"; then
     log "SeasLog PHP INI configuration already up to date: ${SEASLOG_INI}"
-    rm -f "${TEMP_SEASLOG_INI}"
+    rm -rf "${TEMP_SEASLOG_INI}"
 else
     log "Deploying SeasLog PHP INI configuration: ${SEASLOG_INI}"
-    cp -f "${TEMP_SEASLOG_INI}" "${SEASLOG_INI}"
-    rm -f "${TEMP_SEASLOG_INI}"
+    cp -raf "${TEMP_SEASLOG_INI}" "${SEASLOG_INI}"
+    rm -rf "${TEMP_SEASLOG_INI}"
 fi
 
 run "Setting SeasLog PHP INI permissions" chmod 0644 "${SEASLOG_INI}"
@@ -480,14 +480,14 @@ run "Enabling PHP-FPM service" systemctl enable php-fpm
 ###############################################################################
 
 if [[ -f "${SEASLOG_SRC_BASE}/package.xml" ]]; then
-    run "Removing SeasLog package metadata" rm -f "${SEASLOG_SRC_BASE}/package.xml"
+    run "Removing SeasLog package metadata" rm -rf "${SEASLOG_SRC_BASE}/package.xml"
 else
     log "SeasLog package metadata already absent: ${SEASLOG_SRC_BASE}/package.xml"
 fi
 
 if [[ "${SEASLOG_INSTALL_REQUIRED}" -eq 1 ]]; then
     if [[ -f "${SEASLOG_ARCHIVE_PATH}" ]]; then
-        run "Removing SeasLog source archive" rm -f "${SEASLOG_ARCHIVE_PATH}"
+        run "Removing SeasLog source archive" rm -rf "${SEASLOG_ARCHIVE_PATH}"
     else
         log "SeasLog source archive already absent: ${SEASLOG_ARCHIVE_PATH}"
     fi
@@ -500,7 +500,7 @@ fi
 ###############################################################################
 
 if [[ -f "${SEASLOG_VERSION_FILE}" ]]; then
-    run "Removing completed SeasLog version selection" rm -f "${SEASLOG_VERSION_FILE}"
+    run "Removing completed SeasLog version selection" rm -rf "${SEASLOG_VERSION_FILE}"
 fi
 
 ###############################################################################

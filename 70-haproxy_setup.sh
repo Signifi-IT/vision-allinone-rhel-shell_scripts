@@ -90,15 +90,15 @@ TEMP_PORTAL_BACKEND_CONFIG=""
 
 cleanup() {
     if [[ -n "${TEMP_GLOBAL_FRONTEND_CONFIG:-}" && -f "${TEMP_GLOBAL_FRONTEND_CONFIG}" ]]; then
-        rm -f "${TEMP_GLOBAL_FRONTEND_CONFIG}"
+        rm -rf "${TEMP_GLOBAL_FRONTEND_CONFIG}"
     fi
 
     if [[ -n "${TEMP_GLOBAL_BACKEND_CONFIG:-}" && -f "${TEMP_GLOBAL_BACKEND_CONFIG}" ]]; then
-        rm -f "${TEMP_GLOBAL_BACKEND_CONFIG}"
+        rm -rf "${TEMP_GLOBAL_BACKEND_CONFIG}"
     fi
 
     if [[ -n "${TEMP_PORTAL_BACKEND_CONFIG:-}" && -f "${TEMP_PORTAL_BACKEND_CONFIG}" ]]; then
-        rm -f "${TEMP_PORTAL_BACKEND_CONFIG}"
+        rm -rf "${TEMP_PORTAL_BACKEND_CONFIG}"
     fi
 }
 
@@ -205,7 +205,7 @@ backup_file_if_needed() {
     fi
 
     log "Creating backup: ${backup}"
-    cp -p "${file}" "${backup}"
+    cp -raf "${file}" "${backup}"
 }
 
 ###############################################################################
@@ -315,7 +315,7 @@ if [[ -f "${HAPROXY_CFG}" ]] && cmp -s "${HAPROXY_MAIN_SRC}" "${HAPROXY_CFG}"; t
 
 else
 
-    run "Deploying HAProxy default configuration file" cp -f \
+    run "Deploying HAProxy default configuration file" cp -raf \
         "${HAPROXY_MAIN_SRC}" "${HAPROXY_CFG}"
 
 fi
@@ -329,7 +329,7 @@ if [[ -f "${UNKNOWN_BACKEND_DEST}" ]] && cmp -s "${UNKNOWN_BACKEND_SRC}" "${UNKN
 
 else
 
-    run "Deploying HAProxy unknown host backend configuration file" cp -f \
+    run "Deploying HAProxy unknown host backend configuration file" cp -raf \
         "${UNKNOWN_BACKEND_SRC}" "${UNKNOWN_BACKEND_DEST}"
 
 fi
@@ -374,14 +374,14 @@ EOF
 if [[ -f "${GLOBAL_FRONTEND_DEST}" ]] && cmp -s "${TEMP_GLOBAL_FRONTEND_CONFIG}" "${GLOBAL_FRONTEND_DEST}"; then
 
     log "Global frontend configuration already up to date: ${GLOBAL_FRONTEND_DEST}"
-    rm -f "${TEMP_GLOBAL_FRONTEND_CONFIG}"
+    rm -rf "${TEMP_GLOBAL_FRONTEND_CONFIG}"
 
 else
 
     log "Deploying Global frontend configuration: ${GLOBAL_FRONTEND_DEST}"
 
-    cp -f "${TEMP_GLOBAL_FRONTEND_CONFIG}" "${GLOBAL_FRONTEND_DEST}"
-    rm -f "${TEMP_GLOBAL_FRONTEND_CONFIG}"
+    cp -raf "${TEMP_GLOBAL_FRONTEND_CONFIG}" "${GLOBAL_FRONTEND_DEST}"
+    rm -rf "${TEMP_GLOBAL_FRONTEND_CONFIG}"
 
 fi
 
@@ -417,14 +417,14 @@ EOF
 if [[ -f "${GLOBAL_BACKEND_DEST}" ]] && cmp -s "${TEMP_GLOBAL_BACKEND_CONFIG}" "${GLOBAL_BACKEND_DEST}"; then
 
     log "Global backend configuration already up to date: ${GLOBAL_BACKEND_DEST}"
-    rm -f "${TEMP_GLOBAL_BACKEND_CONFIG}"
+    rm -rf "${TEMP_GLOBAL_BACKEND_CONFIG}"
 
 else
 
     log "Deploying Global backend configuration: ${GLOBAL_BACKEND_DEST}"
 
-    cp -f "${TEMP_GLOBAL_BACKEND_CONFIG}" "${GLOBAL_BACKEND_DEST}"
-    rm -f "${TEMP_GLOBAL_BACKEND_CONFIG}"
+    cp -raf "${TEMP_GLOBAL_BACKEND_CONFIG}" "${GLOBAL_BACKEND_DEST}"
+    rm -rf "${TEMP_GLOBAL_BACKEND_CONFIG}"
 
 fi
 
@@ -456,14 +456,14 @@ EOF
 if [[ -f "${PORTAL_BACKEND_DEST}" ]] && cmp -s "${TEMP_PORTAL_BACKEND_CONFIG}" "${PORTAL_BACKEND_DEST}"; then
 
     log "Portal backend configuration already up to date: ${PORTAL_BACKEND_DEST}"
-    rm -f "${TEMP_PORTAL_BACKEND_CONFIG}"
+    rm -rf "${TEMP_PORTAL_BACKEND_CONFIG}"
 
 else
 
     log "Deploying Portal backend configuration: ${PORTAL_BACKEND_DEST}"
 
-    cp -f "${TEMP_PORTAL_BACKEND_CONFIG}" "${PORTAL_BACKEND_DEST}"
-    rm -f "${TEMP_PORTAL_BACKEND_CONFIG}"
+    cp -raf "${TEMP_PORTAL_BACKEND_CONFIG}" "${PORTAL_BACKEND_DEST}"
+    rm -rf "${TEMP_PORTAL_BACKEND_CONFIG}"
 
 fi
 
@@ -486,7 +486,7 @@ if [[ -f "${CERT_DEST}" ]] && cmp -s "${CERT_PATH}" "${CERT_DEST}"; then
 
 else
 
-    run "Installing TLS certificate" cp -f "${CERT_PATH}" "${CERT_DEST}"
+    run "Installing TLS certificate" cp -raf "${CERT_PATH}" "${CERT_DEST}"
 
 fi
 

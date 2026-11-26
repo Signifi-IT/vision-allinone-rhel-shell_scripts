@@ -1,5 +1,3 @@
-# TLS certificate rotation configuration for 95-ssl_rotate.sh
-# Source this file with: bash 95-ssl_rotate.sh --answer-file /tmp/scripts/answers-ssl.txt
-
 PORTAL_URL="portal.example.com"
+
 NEW_CERT_PATH="/tmp/scripts/files/certs/portal.example.com.pem"

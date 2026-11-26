@@ -5,7 +5,7 @@ BITBUCKET_KEY="${SCRIPT_DIR}/files/project_files/<filename>"
 PORTAL_URL=""
 
 # Git repository URL for the Vision Central application client
-VC_URL="git@bitbucket.org:teamsignifi/qr.git"
+QR_URL="git@bitbucket.org:teamsignifi/qr.git"
 
 # Git branch to deploy for the Vision Central application client
-VC_BRANCH="master"
+QR_BRANCH="master"

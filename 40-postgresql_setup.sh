@@ -179,7 +179,7 @@ backup_file_if_needed() {
     fi
 
     log "Creating backup: ${backup}"
-    cp -p "${file}" "${backup}"
+    cp -raf "${file}" "${backup}"
 }
 
 ###############################################################################
