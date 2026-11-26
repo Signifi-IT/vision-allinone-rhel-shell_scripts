@@ -2,23 +2,23 @@
 
 ###############################################################################
 # Description:
-#   Configures a full application stack PHP 8.2, PostgreSQL 14, HTTPD and supporting system services on RHEL-based systems:
+#   Installs and configures the Vision application stack on RHEL-based systems:
 #     - Requires root privileges
-#     - Logs all actions to /var/log/vision_deployment.log
+#     - Logs all operations to /var/log/vision_deployment.log
 #     - Imports the EPEL GPG key and installs the EPEL repository when missing
 #     - Enables the CodeReady Builder repository
 #     - Disables unnecessary PostgreSQL and EPEL repositories
 #     - Cleans and rebuilds the DNF package metadata cache
-#     - Resets and enables PHP 8.2 module stream
+#     - Resets and enables the PHP 8.2 module stream
 #     - Performs a full system package upgrade
-#     - Installs the PHP 8.2 common profile package group when missing
-#     - Cleans and rebuilds the DNF package metadata cache
-#     - Installs missing HTTPD, PHP, PostgreSQL 14 packages, and related application dependencies
-#     - Initializes PostgreSQL database
-#     - Changes PostgreSQL listener port from 5432 to 5431
-#     - Configures SELinux PostgreSQL port mapping for PostgreSQL on TCP 5431
-#     - Unmasks HTTPD, reloads systemd, starts and enables PostgreSQL 14 service
-#     - Enables and starts application services: HTTPD, PHP-FPM, auditd, and restorecond
+#     - Installs the PHP 8.2 common profile when required
+#     - Installs missing Apache HTTPD, PHP, PostgreSQL 14, and related packages
+#     - Initializes the PostgreSQL 14 database cluster when missing
+#     - Configures PostgreSQL to listen on TCP port 5431
+#     - Configures SELinux PostgreSQL port mapping for TCP port 5431
+#     - Unmasks HTTPD and reloads the systemd configuration
+#     - Starts and enables the PostgreSQL 14 service
+#     - Starts and enables Apache HTTPD, PHP-FPM, auditd, and restorecond services
 #     - Enables required SELinux booleans for Apache database connectivity and HAProxy network access
 ###############################################################################
 

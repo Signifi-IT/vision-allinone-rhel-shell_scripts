@@ -2,15 +2,21 @@
 
 ###############################################################################
 # Description:
-#   Deploys the VC API repository to an existing Vision portal:
+#   Deploys the VC API repository to an existing Vision application portal
+#   on RHEL-based systems:
 #     - Requires root privileges
-#     - Logs operations to /var/log/vision_deployment.log
-#     - Loads configuration using --answer-file
-#     - Uses the same Bitbucket SSH key mechanism as 50.sh
-#     - Clones the requested VC branch to a temporary directory under /var/www
-#     - Copies repository content to /var/www/${PORTAL_URL}/api/
-#     - Sets target directory permissions to 0755 and ownership to root:apache
-#     - Removes the temporary clone after successful deployment
+#     - Logs all operations to /var/log/vision_deployment.log
+#     - Requires --answer-file argument to load the desired answer file
+#     - Loads configuration from the provided answer file
+#     - Validates required variables and files
+#     - Validates the existing application portal directory
+#     - Configures Bitbucket SSH key permissions and ownership for secure Git access
+#     - Clones the VC API repository from Bitbucket using the release branch
+#     - Stores the cloned repository temporarily in /var/www/vc_api
+#     - Copies the VC API repository contents to /var/www/${PORTAL_URL}/api/
+#     - Sets the destination API directory permissions to 0755
+#     - Sets recursive ownership of the destination API directory to root:apache
+#     - Removes the temporary VC API repository after successful deployment
 ###############################################################################
 
 set -Eeuo pipefail

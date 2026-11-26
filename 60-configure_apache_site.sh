@@ -7,6 +7,7 @@
 #     - Logs all operations to /var/log/vision_deployment.log
 #     - Loads configuration from answers.txt
 #     - Validates required variables
+#     - Validates required arrays, including ALLOWED_SERVER_STATUS_IPS
 #     - Removes default Apache configuration files
 #     - Configures mod_status
 #     - Configures Apache listener to listen on 127.0.0.1:7080 when not already configured

@@ -2,8 +2,8 @@
 
 ###############################################################################
 # Description:
-#   Configures SELinux contexts and filesystem permissions for application
-#   directories on RHEL-based systems:
+#   Configures SELinux contexts and filesystem permissions for Vision
+#   application directories on RHEL-based systems:
 #     - Requires root privileges
 #     - Logs all operations to /var/log/vision_deployment.log
 #     - Requires --answer-file argument to load the desired answer file
@@ -14,13 +14,17 @@
 #     - Sets application directory permissions recursively to 0755
 #     - Sets application file permissions recursively to 0644
 #     - Sets recursive application ownership to root:apache
-#     - Configures SELinux file context rules for the application sessions directory
-#     - Configures SELinux file context rules for the application media directory
-#     - Adds or updates SELinux file context rules as needed
+#     - Configures SELinux file context rules for media and sessions directories
+#     - Checks existing local SELinux file context rules before making changes
+#     - Adds missing SELinux file context rules using httpd_sys_rw_content_t
+#     - Updates existing SELinux file context rules when the type is incorrect
+#     - Skips SELinux file context changes when the correct rules already exist
 #     - Applies SELinux contexts recursively using restorecon
-#     - Enables required SELinux booleans for Apache database connectivity and HAProxy network access
-#     - Sets writable permissions on the primary application media directory
-#     - Sets writable permissions on the primary application sessions directory
+#     - Sets the primary application media directory permissions to 0770
+#     - Sets the primary application sessions directory permissions to 0770
+#     - Enables required SELinux booleans for Apache, HAProxy, and syslog
+#     - Persists required SELinux boolean settings across system reboots
+#     - Verifies that required SELinux booleans are enabled
 ###############################################################################
 
 set -Eeuo pipefail
@@ -206,11 +210,42 @@ run "Setting application ownership" chown -R root:apache "${APP_DIR}"
 # Configure SELinux file contexts
 ###############################################################################
 
-run "Configuring SELinux context for sessions directory" \
-    bash -c "semanage fcontext -a -t httpd_sys_rw_content_t '${SESSIONS_DIR}(/.*)?' 2>/dev/null || semanage fcontext -m -t httpd_sys_rw_content_t '${SESSIONS_DIR}(/.*)?'"
+configure_selinux_fcontext() {
 
-run "Configuring SELinux context for media directory" \
-    bash -c "semanage fcontext -a -t httpd_sys_rw_content_t '${MEDIA_DIR}(/.*)?' 2>/dev/null || semanage fcontext -m -t httpd_sys_rw_content_t '${MEDIA_DIR}(/.*)?'"
+    local directory="$1"
+    local context_type="$2"
+    local fcontext_rule="${directory}(/.*)?"
+    local current_context
+
+    current_context="$(
+        semanage fcontext -l -C | awk -v rule="${fcontext_rule}" \
+            '$1 == rule { print $NF; exit }'
+    )"
+
+    if [[ -z "${current_context}" ]]; then
+
+        run "Adding SELinux context for ${directory}" \
+            semanage fcontext -a -t "${context_type}" "${fcontext_rule}"
+
+    elif [[ "${current_context}" == *:"${context_type}":* ]]; then
+
+        log "SELinux context already configured for ${directory}: ${context_type}"
+
+    else
+
+        run "Updating SELinux context for ${directory}" \
+            semanage fcontext -m -t "${context_type}" "${fcontext_rule}"
+
+    fi
+}
+
+###############################################################################
+# Configure application directory SELinux contexts
+###############################################################################
+
+configure_selinux_fcontext "${SESSIONS_DIR}" "httpd_sys_rw_content_t"
+
+configure_selinux_fcontext "${MEDIA_DIR}" "httpd_sys_rw_content_t"
 
 ###############################################################################
 # Apply SELinux contexts

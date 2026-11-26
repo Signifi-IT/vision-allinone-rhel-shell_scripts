@@ -5,22 +5,34 @@
 #   Installs and configures the SeasLog PHP extension on RHEL-based systems:
 #     - Requires root privileges
 #     - Logs all operations to /var/log/vision_deployment.log
+#     - Cleans and rebuilds the DNF package metadata cache
 #     - Installs missing build dependencies required for PECL extension builds
-#     - Creates the SeasLog source build directory
+#     - Validates required commands
+#     - Checks whether the SeasLog PHP module is installed and loadable
+#     - Skips installation when the SeasLog PHP module is already loadable
+#     - Creates the SeasLog source build directory when installation is required
 #     - Detects the latest stable SeasLog version from PECL
-#     - Downloads the latest stable SeasLog source archive when missing
-#     - Extracts the SeasLog source archive when missing
-#     - Builds and installs the SeasLog PHP extension when seaslog.so is missing
-#     - Creates or updates the SeasLog PHP INI configuration
+#     - Preserves the selected PECL version for interrupted-run recovery
+#     - Downloads the SeasLog source archive when missing or invalid
+#     - Validates the downloaded source archive before extraction
+#     - Extracts the SeasLog source archive when missing or incomplete
+#     - Verifies source extraction and recovers from interrupted builds
+#     - Builds and installs SeasLog when seaslog.so is missing or cannot be loaded
+#     - Validates SeasLog module file existence, ownership, and permissions
+#     - Creates or updates the SeasLog PHP INI configuration when changed
+#     - Cleans up temporary PHP INI files on exit
 #     - Creates required SeasLog log directories with apache ownership
 #     - Configures SELinux file context rules for SeasLog log directories
+#     - Adds missing SELinux rules or updates existing rules when required
 #     - Applies SELinux contexts recursively using restorecon
-#     - Adds the SeasLog PHP module to fapolicyd trust and updates the trust database
-#     - Validates PHP module loading
+#     - Configures SeasLog fapolicyd trust when fapolicyd is installed and active
+#     - Adds missing trust entries or refreshes existing module trust metadata
+#     - Updates the fapolicyd trust database
+#     - Validates PHP module loading and extension information
+#     - Validates PHP-FPM configuration
 #     - Restarts and enables PHP-FPM service
-#     - Removes temporary SeasLog source archive and package metadata files
-#     - Cleans up temporary PHP INI files on exit
-#     - Retains the selected PECL version for recovery from interrupted runs
+#     - Removes temporary SeasLog source archives and package metadata files
+#     - Removes the saved PECL version after successful installation
 ###############################################################################
 
 set -Eeuo pipefail
