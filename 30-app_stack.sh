@@ -138,6 +138,7 @@ UNNECESSARY_REPOS=(
     pgdg16
     pgdg17
     pgdg18
+    pgdg19
 )
 
 for repo in "${UNNECESSARY_REPOS[@]}"; do
